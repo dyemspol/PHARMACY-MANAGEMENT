@@ -189,28 +189,28 @@
         </div>
 
         <!-- Products Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 animate-bento delay-1">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-3 animate-bento delay-1">
           <template x-for="med in medicines.filter(m => (selectedCategory === 'All' || m.category === selectedCategory) && m.name.toLowerCase().includes(searchQuery.toLowerCase()))" :key="med.id">
             <div 
               @click="addToCart(med)"
-              class="glass-card p-5 rounded-[2.5rem] cursor-pointer group hover:border-teal-500/30"
+              class="glass-card p-3.5 rounded-2xl cursor-pointer group hover:border-teal-500/30 transition-all border border-white/40 shadow-sm"
             >
-              <div class="flex items-start justify-between mb-4">
-                <div :class="`w-14 h-14 ${med.color} rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm border border-black/5 group-hover:scale-110 transition-transform`" x-text="med.name.charAt(0)"></div>
-                <div class="bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tight" x-text="med.category"></span>
+              <div class="flex items-start justify-between mb-2.5">
+                <div :class="`w-9 h-9 ${med.color} rounded-xl flex items-center justify-center font-bold text-sm shadow-sm border border-black/5 group-hover:scale-105 transition-transform`" x-text="med.name.charAt(0)"></div>
+                <div class="bg-slate-50/80 px-2 py-0.5 rounded-full border border-slate-100/50">
+                  <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight" x-text="med.category"></span>
                 </div>
               </div>
               <div class="space-y-1">
-                <h3 class="text-[15px] font-bold text-slate-800" x-text="med.name"></h3>
+                <h3 class="text-xs font-bold text-slate-800 truncate" x-text="med.name"></h3>
                 <div class="flex items-center justify-between">
-                  <span class="text-lg font-black text-slate-900 tracking-tight">₱ <span x-text="med.price.toFixed(2)"></span></span>
-                  <span class="text-[10px] font-bold text-teal-600 uppercase" x-text="med.stock + ' in stock'"></span>
+                  <span class="text-sm font-black text-slate-900 tracking-tight">₱ <span x-text="med.price.toFixed(2)"></span></span>
+                  <span class="text-[8px] font-bold text-teal-600 uppercase" x-text="med.stock + ' in stock'"></span>
                 </div>
               </div>
-              <div class="mt-4 pt-4 border-t border-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                 <span class="text-[10px] font-bold text-teal-600 uppercase flex items-center gap-2">
-                   <i data-lucide="plus" class="w-3 h-3"></i> Quick Add
+              <div class="mt-2.5 pt-2.5 border-t border-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
+                 <span class="text-[8px] font-bold text-teal-600 uppercase flex items-center gap-1">
+                   <i data-lucide="plus" class="w-2 h-2"></i> Quick Add
                  </span>
               </div>
             </div>
