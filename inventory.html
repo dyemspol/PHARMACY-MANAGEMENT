@@ -26,13 +26,15 @@
   <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ 
     sidebarOpen: true, 
     editModalOpen: false,
+    addModalOpen: false,
     medicines: [
-      { name: 'Paracetamol', category: 'Pain Relief', batch: 'N/A', stock: '37 units', price: 'GHC2000.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-teal-50 text-teal-600' },
-      { name: 'Doliprane', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: 'GHC200.00', expiryStatus: 'Good', expiryDate: '10/24/2030', color: 'bg-amber-50 text-amber-600' },
-      { name: 'Aspirine', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: 'GHC150.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-rose-50 text-rose-600' },
-      { name: 'Tramadol', category: 'Pain Relief', batch: 'N/A', stock: '30 units', price: 'GHC2000.00', expiryStatus: 'Good', expiryDate: '10/9/2031', color: 'bg-blue-50 text-blue-600' }
+      { name: 'Paracetamol', category: 'Pain Relief', batch: 'N/A', stock: '37 units', price: '₱2000.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-teal-50 text-teal-600' },
+      { name: 'Doliprane', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: '₱200.00', expiryStatus: 'Good', expiryDate: '10/24/2030', color: 'bg-amber-50 text-amber-600' },
+      { name: 'Aspirine', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: '₱150.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-rose-50 text-rose-600' },
+      { name: 'Tramadol', category: 'Pain Relief', batch: 'N/A', stock: '30 units', price: '₱2000.00', expiryStatus: 'Good', expiryDate: '10/9/2031', color: 'bg-blue-50 text-blue-600' }
     ],
-    selectedMedicine: {}
+    selectedMedicine: {},
+    newMedicine: { name: '', category: 'Pain Relief', batch: '', stock: '', price: '₱', expiryDate: '', color: 'bg-teal-50 text-teal-600', photo: null }
   }">
     
     <div class="bg-mesh"></div>
@@ -101,7 +103,7 @@
             </div>
             <!-- Price -->
             <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Unit Price (GHC) <span class="text-rose-500">*</span></label>
+                <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Unit Price (₱) <span class="text-rose-500">*</span></label>
               <input type="text" x-model="selectedMedicine.price" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
             </div>
             <!-- Purchase Price -->
@@ -116,16 +118,51 @@
             </div>
           </div>
 
-          <!-- Product Image Mockup -->
-          <div class="space-y-2">
+          <!-- Product Image Section -->
+          <div class="space-y-3" x-data="{ editPhotoPreview: null }">
             <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Product Image <span class="text-slate-300">(optional)</span></label>
-            <div class="flex items-center gap-4">
-              <div class="flex-1 h-32 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 hover:border-indigo-500 transition-colors cursor-pointer group">
-                <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-300 group-hover:text-indigo-500 transition-colors"></i>
-                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Choose File</p>
+            
+            <input type="file" class="hidden" x-ref="editPhoto" 
+                   @change="
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            editPhotoPreview = e.target.result;
+                        };
+                        reader.readAsDataURL($refs.editPhoto.files[0]);
+                   ">
+
+            <div class="flex items-center gap-6">
+              <!-- Upload Placeholder -->
+              <div 
+                @click="$refs.editPhoto.click()"
+                class="flex-1 h-32 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 hover:border-teal-500 hover:bg-teal-50/30 transition-all cursor-pointer group relative overflow-hidden"
+              >
+                <div class="flex flex-col items-center justify-center transition-all group-hover:scale-105" x-show="!editPhotoPreview">
+                  <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-300 group-hover:text-teal-500 transition-colors"></i>
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Change Product Photo</p>
+                </div>
+                
+                <!-- Preview Image -->
+                <template x-if="editPhotoPreview">
+                  <img :src="editPhotoPreview" class="absolute inset-0 w-full h-full object-cover">
+                </template>
+
+                <!-- Overlay on hover when has preview -->
+                <div x-show="editPhotoPreview" class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span class="text-[10px] font-black text-white uppercase tracking-widest">Select New Photo</span>
+                </div>
               </div>
+
+              <!-- Icon Preview (Fallback) -->
               <div class="w-32 h-32 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-center overflow-hidden">
-                <div :class="`w-14 h-14 ${selectedMedicine.color} rounded-2xl flex items-center justify-center font-bold text-xl`" x-text="selectedMedicine.name ? selectedMedicine.name.charAt(0) : ''"></div>
+                <template x-if="!editPhotoPreview">
+                  <div :class="`w-14 h-14 ${selectedMedicine.color} rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm`" x-text="selectedMedicine.name ? selectedMedicine.name.charAt(0) : '?'"></div>
+                </template>
+                <template x-if="editPhotoPreview">
+                   <div class="w-full h-full p-2">
+                     <img :src="editPhotoPreview" class="w-full h-full object-cover rounded-2xl shadow-sm">
+                   </div>
+                </template>
               </div>
             </div>
           </div>
@@ -137,7 +174,136 @@
         </div>
       </div>
     </div>
+    <!-- Add Medicine Modal Overlay -->
+    <div 
+      x-show="addModalOpen" 
+      x-cloak 
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed inset-0 z-60 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"
+    >
+      <!-- Modal Content -->
+      <div 
+        @click.away="addModalOpen = false"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+        class="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-bento"
+      >
+        <div class="px-10 py-8 border-b border-slate-100 flex items-center justify-between bg-white">
+          <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Add New Medicine</h2>
+          <button @click="addModalOpen = false" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 transition-colors">
+            <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+          </button>
+        </div>
 
+        <div class="p-10 space-y-6 max-h-[70vh] overflow-y-auto hide-scrollbar">
+          <div class="grid grid-cols-2 gap-6">
+            <!-- Name -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Medicine Name <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="newMedicine.name" placeholder="Paracetamol, etc." class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Category -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Category <span class="text-rose-500">*</span></label>
+              <select x-model="newMedicine.category" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700 appearance-none">
+                <option>Pain Relief</option>
+                <option>Antibiotics</option>
+                <option>Antiseptics</option>
+                <option>Vitamins</option>
+              </select>
+            </div>
+            <!-- Batch -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Batch Number <span class="text-slate-300">(optional)</span></label>
+              <input type="text" x-model="newMedicine.batch" placeholder="B-2025-001" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Stock -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Stock Quantity <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="newMedicine.stock" placeholder="e.g. 50 units" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Expiry -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Expiration Date <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="newMedicine.expiryDate" placeholder="MM/DD/YYYY" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Price -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Unit Price (₱) <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="newMedicine.price" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
+            </div>
+          </div>
+
+          <!-- Product Image Section -->
+          <div class="space-y-3" x-data="{ photoName: null, photoPreview: null }">
+            <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Product Image <span class="text-slate-300">(optional)</span></label>
+            
+            <input type="file" class="hidden" x-ref="photo" 
+                   @change="
+                        photoName = $refs.photo.files[0].name;
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            photoPreview = e.target.result;
+                        };
+                        reader.readAsDataURL($refs.photo.files[0]);
+                   ">
+
+            <div class="flex items-center gap-6">
+              <!-- Upload Placeholder -->
+              <div 
+                @click="$refs.photo.click()"
+                class="flex-1 h-32 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 hover:border-teal-500 hover:bg-teal-50/30 transition-all cursor-pointer group relative overflow-hidden"
+              >
+                <div class="flex flex-col items-center justify-center transition-all group-hover:scale-105" x-show="!photoPreview">
+                  <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-300 group-hover:text-teal-500 transition-colors"></i>
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select Product Photo</p>
+                </div>
+                
+                <!-- Preview Image -->
+                <template x-if="photoPreview">
+                  <img :src="photoPreview" class="absolute inset-0 w-full h-full object-cover">
+                </template>
+
+                <!-- Overlay on hover when has preview -->
+                <div x-show="photoPreview" class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span class="text-[10px] font-black text-white uppercase tracking-widest">Change Photo</span>
+                </div>
+              </div>
+
+              <!-- Icon Preview (Fallback) -->
+              <div class="w-32 h-32 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-center overflow-hidden">
+                <template x-if="!photoPreview">
+                  <div :class="`w-14 h-14 ${newMedicine.color} rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm`" x-text="newMedicine.name ? newMedicine.name.charAt(0) : '?'"></div>
+                </template>
+                <template x-if="photoPreview">
+                   <div class="w-full h-full p-2">
+                     <img :src="photoPreview" class="w-full h-full object-cover rounded-2xl shadow-sm">
+                   </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-10 py-8 bg-slate-50/50 border-t border-slate-100 flex justify-end gap-3">
+          <button @click="addModalOpen = false" class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Cancel</button>
+          <button 
+            @click="
+              medicines.push({...newMedicine, expiryStatus: 'Good'}); 
+              addModalOpen = false;
+              newMedicine = { name: '', category: 'Pain Relief', batch: '', stock: '', price: '₱', expiryDate: '', color: 'bg-teal-50 text-teal-600' }
+            " 
+            class="px-10 py-3 bg-teal-600 text-white font-bold rounded-2xl shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all"
+          >Add Medicine</button>
+        </div>
+      </div>
+    </div>
     <!-- Sidebar -->
     <aside 
       class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
@@ -180,20 +346,14 @@
             <span class="font-semibold text-[15px]">Sales History</span>
           </a>
 
-          <a href="#" class="nav-link w-full">
-            <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Restocking</span>
-          </a>
 
-          <a href="#" class="nav-link w-full">
+
+          <a href="reports.html" class="nav-link w-full">
             <i data-lucide="file-text" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Reports</span>
           </a>
 
-          <a href="#" class="nav-link w-full">
-            <i data-lucide="truck" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Logistics</span>
-          </a>
+
 
         </nav>
 
@@ -223,7 +383,7 @@
         </div>
 
         <div class="flex items-center gap-4">
-          <button class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all">
+          <button @click="addModalOpen = true" class="px-6 py-3 bg-teal-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all">
             <i data-lucide="plus" class="w-4 h-4 text-white"></i>
             <span>Add Medicine</span>
           </button>
