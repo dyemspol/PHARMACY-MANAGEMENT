@@ -199,7 +199,7 @@
               <div class="space-y-1">
                 <h3 class="text-[15px] font-bold text-slate-800" x-text="med.name"></h3>
                 <div class="flex items-center justify-between">
-                  <span class="text-lg font-black text-slate-900 tracking-tight">GHC <span x-text="med.price.toFixed(2)"></span></span>
+                  <span class="text-lg font-black text-slate-900 tracking-tight">₱ <span x-text="med.price.toFixed(2)"></span></span>
                   <span class="text-[10px] font-bold text-teal-600 uppercase" x-text="med.stock + ' in stock'"></span>
                 </div>
               </div>
@@ -238,7 +238,7 @@
               <div :class="`w-12 h-12 ${item.color} rounded-2xl flex items-center justify-center font-bold text-sm shadow-sm`" x-text="item.name.charAt(0)"></div>
               <div class="flex-1">
                 <h4 class="text-sm font-bold text-slate-800" x-text="item.name"></h4>
-                <p class="text-xs font-medium text-slate-400">GHC <span x-text="item.price.toFixed(2)"></span> × <span x-text="item.quantity"></span></p>
+                <p class="text-xs font-medium text-slate-400">₱ <span x-text="item.price.toFixed(2)"></span> × <span x-text="item.quantity"></span></p>
               </div>
               <div class="flex items-center gap-3">
                 <button @click="if(item.quantity > 1) item.quantity--; else removeFromCart(item.id)" class="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg hover:bg-rose-50 hover:text-rose-500 transition-colors">
@@ -258,15 +258,15 @@
           <div class="space-y-2">
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium text-slate-400">Subtotal</span>
-              <span class="text-sm font-bold text-slate-700 font-mono">GHC <span x-text="getTotal().toFixed(2)"></span></span>
+              <span class="text-sm font-bold text-slate-700 font-mono">₱ <span x-text="getTotal().toFixed(2)"></span></span>
             </div>
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium text-slate-400">Tax (0%)</span>
-              <span class="text-sm font-bold text-slate-700 font-mono">GHC 0.00</span>
+              <span class="text-sm font-bold text-slate-700 font-mono">₱ 0.00</span>
             </div>
             <div class="pt-4 border-t border-slate-50 flex items-center justify-between">
               <span class="text-lg font-extrabold text-slate-800">Total</span>
-              <span class="text-2xl font-black text-teal-600 tracking-tight font-mono">GHC <span x-text="getTotal().toFixed(2)"></span></span>
+              <span class="text-2xl font-black text-teal-600 tracking-tight font-mono">₱ <span x-text="getTotal().toFixed(2)"></span></span>
             </div>
           </div>
 

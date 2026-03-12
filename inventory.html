@@ -22,7 +22,182 @@
       [x-cloak] { display: none !important; }
     </style>
   </head>
-  <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ sidebarOpen: true }">
+  <body 
+    class="antialiased text-slate-900 overflow-x-hidden" 
+    x-data="{ 
+      sidebarOpen: true,
+      addModalOpen: false,
+      addGeneralModalOpen: false,
+      editModalOpen: false,
+      deleteConfirmOpen: false,
+      searchTerm: '',
+      newMedicine: { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      editingMedicine: { name: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      editingKind: 'Medicine',
+      editingIndex: null,
+      itemToDelete: null,
+      medicines: [
+        { name: 'Paracetamol', kind: 'Medicine', category: 'Pain Relief', type: 'Generic', batch: 'B-102', supplier: 'PharmaCorp', stock: '37 units', costPrice: '₱15.00', sellingPrice: '₱20.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-teal-50 text-teal-600' },
+        { name: 'Doliprane', kind: 'Medicine', category: 'Pain Relief', type: 'Branded', batch: 'B-205', supplier: 'LifeMeds', stock: '25 units', costPrice: '₱150.00', sellingPrice: '₱200.00', expiryStatus: 'Good', expiryDate: '10/24/2030', color: 'bg-amber-50 text-amber-600' },
+        { name: 'Surgical Masks', kind: 'General', category: 'Medical Supplies', batch: 'M-551', supplier: 'SafeHealth', stock: '100 units', costPrice: '₱50.00', sellingPrice: '₱75.00', expiryStatus: 'Good', expiryDate: '01/01/2030', color: 'bg-indigo-50 text-indigo-600' },
+        { name: 'Aspirine', kind: 'Medicine', category: 'Pain Relief', type: 'Generic', batch: 'B-009', supplier: 'PharmaCorp', stock: '25 units', costPrice: '₱100.00', sellingPrice: '₱150.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-rose-50 text-rose-600' },
+        { name: 'Tramadol', kind: 'Medicine', category: 'Pain Relief', type: 'Branded', batch: 'T-998', supplier: 'MedX', stock: '30 units', costPrice: '₱1500.00', sellingPrice: '₱2000.00', expiryStatus: 'Good', expiryDate: '10/9/2031', color: 'bg-blue-50 text-blue-600' }
+      ],
+      categories: ['Pain Relief', 'Antibiotics', 'Vitamins', 'Cardiovascular', 'First Aid'],
+      categoryModalOpen: false,
+      newCategoryName: '',
+      editingCategoryIndex: null,
+      editingCategoryName: '',
+      
+      addCategory() {
+        if (!this.newCategoryName.trim()) return;
+        if (!this.categories.includes(this.newCategoryName.trim())) {
+          this.categories.push(this.newCategoryName.trim());
+        }
+        this.newCategoryName = '';
+      },
+      
+      confirmDeleteCategory(index) {
+        const catName = this.categories[index];
+        const isUsed = this.medicines.some(m => m.category === catName);
+        if (isUsed) {
+          if (!confirm(`Warning: Some medicines are using the '${catName}' category. Deleting it will leave them uncategorized. Continue?`)) return;
+        }
+        this.categories.splice(index, 1);
+      },
+      
+      startEditCategory(index) {
+        this.editingCategoryIndex = index;
+        this.editingCategoryName = this.categories[index];
+      },
+      
+      saveCategoryEdit() {
+        if (this.editingCategoryIndex === null || !this.editingCategoryName.trim()) return;
+        const oldName = this.categories[this.editingCategoryIndex];
+        const newName = this.editingCategoryName.trim();
+        
+        // Update the category name in the list
+        this.categories[this.editingCategoryIndex] = newName;
+        
+        // Update all medicines using this category
+        this.medicines.forEach(m => {
+          if (m.category === oldName) m.category = newName;
+        });
+        
+        this.editingCategoryIndex = null;
+        this.editingCategoryName = '';
+      },
+      
+      cancelCategoryEdit() {
+        this.editingCategoryIndex = null;
+        this.editingCategoryName = '';
+      },
+      get filteredMedicines() {
+        return this.medicines.filter(m => m.name.toLowerCase().includes(this.searchTerm.toLowerCase()));
+      },
+      get filteredMedicinesOnly() {
+        return this.medicines.filter(m => m.kind === 'Medicine' && m.name.toLowerCase().includes(this.searchTerm.toLowerCase()));
+      },
+      get filteredGeneralItemsOnly() {
+        return this.medicines.filter(m => (m.kind === 'General' || !m.kind) && m.name.toLowerCase().includes(this.searchTerm.toLowerCase()));
+      },
+      addMedicine() {
+        if (!this.newMedicine.name || !this.newMedicine.stock || !this.newMedicine.sellingPrice) return;
+        const colors = ['bg-teal-50 text-teal-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+        this.medicines.unshift({
+          name: this.newMedicine.name,
+          kind: 'Medicine',
+          category: this.newMedicine.category,
+          type: this.newMedicine.type,
+          batch: this.newMedicine.batch || ('NEW-' + Math.floor(Math.random() * 1000)),
+          supplier: this.newMedicine.supplier || 'N/A',
+          stock: this.newMedicine.stock + ' units',
+          costPrice: '₱' + parseFloat(this.newMedicine.costPrice || 0).toFixed(2),
+          sellingPrice: '₱' + parseFloat(this.newMedicine.sellingPrice).toFixed(2),
+          expiryStatus: 'Good',
+          expiryDate: this.newMedicine.expiryDate || 'N/A',
+          color: randomColor
+        });
+        this.newMedicine = { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
+        this.addModalOpen = false;
+        setTimeout(() => lucide.createIcons(), 50);
+      },
+      addGeneralItem() {
+        if (!this.newGeneralItem.name || !this.newGeneralItem.stock || !this.newGeneralItem.sellingPrice) return;
+        const colors = ['bg-teal-50 text-teal-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
+        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+        this.medicines.unshift({
+          name: this.newGeneralItem.name,
+          kind: 'General',
+          barcode: this.newGeneralItem.barcode || 'N/A',
+          category: this.newGeneralItem.category,
+          type: 'N/A',
+          batch: this.newGeneralItem.batch || ('G-' + Math.floor(Math.random() * 1000)),
+          supplier: this.newGeneralItem.supplier || 'N/A',
+          stock: this.newGeneralItem.stock + ' units',
+          costPrice: '₱' + parseFloat(this.newGeneralItem.costPrice || 0).toFixed(2),
+          sellingPrice: '₱' + parseFloat(this.newGeneralItem.sellingPrice).toFixed(2),
+          expiryStatus: 'Good',
+          expiryDate: this.newGeneralItem.expiryDate || 'N/A',
+          color: randomColor
+        });
+        this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
+        this.addGeneralModalOpen = false;
+        setTimeout(() => lucide.createIcons(), 50);
+      },
+      openEditModal(medicine, index) {
+        this.editingIndex = index;
+        this.editingKind = medicine.kind || 'Medicine';
+        const stockVal = medicine.stock.replace(' units', '');
+        const costVal = medicine.costPrice.replace('₱', '');
+        const sellingVal = medicine.sellingPrice.replace('₱', '');
+        this.editingMedicine = { 
+          name: medicine.name, 
+          barcode: medicine.barcode || '',
+          category: medicine.category, 
+          type: medicine.type || 'N/A', 
+          stock: stockVal, 
+          costPrice: costVal, 
+          sellingPrice: sellingVal, 
+          supplier: medicine.supplier || '',
+          batch: medicine.batch || '',
+          expiryDate: medicine.expiryDate === 'N/A' ? '' : medicine.expiryDate 
+        };
+        this.editModalOpen = true;
+      },
+      saveEdit() {
+        if (this.editingIndex === null) return;
+        const target = this.medicines[this.editingIndex];
+        target.name = this.editingMedicine.name;
+        target.barcode = this.editingMedicine.barcode || 'N/A';
+        target.category = this.editingMedicine.category;
+        if (this.editingKind === 'Medicine') {
+          target.type = this.editingMedicine.type;
+        }
+        target.stock = this.editingMedicine.stock + ' units';
+        target.costPrice = '₱' + parseFloat(this.editingMedicine.costPrice || 0).toFixed(2);
+        target.sellingPrice = '₱' + parseFloat(this.editingMedicine.sellingPrice).toFixed(2);
+        target.supplier = this.editingMedicine.supplier || 'N/A';
+        target.batch = this.editingMedicine.batch || 'N/A';
+        target.expiryDate = this.editingMedicine.expiryDate || 'N/A';
+        this.editModalOpen = false;
+        this.editingIndex = null;
+      },
+      confirmDelete(medicine) {
+        this.itemToDelete = medicine;
+        this.deleteConfirmOpen = true;
+      },
+      finalDelete() {
+        if (this.itemToDelete) {
+          this.medicines = this.medicines.filter(m => m !== this.itemToDelete);
+          this.itemToDelete = null;
+        }
+        this.deleteConfirmOpen = false;
+      }
+    }"
+  >
     
     <div class="bg-mesh"></div>
 
@@ -124,7 +299,17 @@
         </div>
 
         <div class="flex items-center gap-4">
-          <button class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all">
+            <button 
+              @click="addGeneralModalOpen = true"
+              class="px-6 py-3 bg-emerald-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all cursor-pointer relative z-10"
+            >
+            <i data-lucide="package" class="w-4 h-4 text-white"></i>
+            <span>Add General Item</span>
+          </button>
+            <button 
+              @click="addModalOpen = true"
+              class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all cursor-pointer relative z-10"
+            >
             <i data-lucide="plus" class="w-4 h-4 text-white"></i>
             <span>Add Medicine</span>
           </button>
@@ -138,94 +323,579 @@
         <div class="bg-white/50 backdrop-blur-xl border border-white/40 p-2 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center animate-bento">
           <div class="relative flex-1 w-full p-2">
             <i data-lucide="search" class="absolute left-10 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
-            <input type="text" placeholder="Search medicines..." class="w-full pl-16 pr-8 py-5 bg-white border border-slate-100 rounded-4xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all text-sm shadow-sm font-medium">
+            <input 
+              type="text" 
+              x-model="searchTerm"
+              placeholder="Search medicines..." 
+              class="w-full pl-16 pr-8 py-5 bg-white border border-slate-100 rounded-4xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all text-sm shadow-sm font-medium"
+            >
           </div>
-          <div class="p-2 w-full md:w-auto">
+          <div class="p-2 w-full md:w-auto flex gap-2">
             <button class="h-16 px-8 flex items-center gap-4 bg-white border border-slate-100 rounded-4xl hover:bg-slate-50 transition-all shadow-sm group">
               <i data-lucide="filter" class="w-5 h-5 text-slate-400 group-hover:text-indigo-600 transition-colors"></i>
               <span class="text-sm font-bold text-slate-600">All Categories</span>
               <i data-lucide="chevron-down" class="w-4 h-4 text-slate-300"></i>
             </button>
+            <button 
+              @click="categoryModalOpen = true"
+              class="h-16 px-6 flex items-center justify-center bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-4xl hover:bg-indigo-100 transition-all shadow-sm group cursor-pointer"
+              title="Manage Categories"
+            >
+              <i data-lucide="settings" class="w-5 h-5"></i>
+            </button>
           </div>
         </div>
 
-        <!-- Table View -->
-        <div class="glass-card rounded-[2.5rem] overflow-hidden animate-bento delay-2">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="bg-slate-50/50">
-                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Medicine</th>
-                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Category</th>
-                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Batch</th>
-                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Stock</th>
-                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Price</th>
-                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Expiry</th>
-                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100/50" x-data="{
-                medicines: [
-                  { name: 'Paracetamol', category: 'Pain Relief', batch: 'N/A', stock: '37 units', price: 'GHC2000.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-teal-50 text-teal-600' },
-                  { name: 'Doliprane', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: 'GHC200.00', expiryStatus: 'Good', expiryDate: '10/24/2030', color: 'bg-amber-50 text-amber-600' },
-                  { name: 'Aspirine', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: 'GHC150.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-rose-50 text-rose-600' },
-                  { name: 'Tramadol', category: 'Pain Relief', batch: 'N/A', stock: '30 units', price: 'GHC2000.00', expiryStatus: 'Good', expiryDate: '10/9/2031', color: 'bg-blue-50 text-blue-600' }
-                ]
-              }">
-                <template x-for="medicine in medicines">
-                  <tr class="hover:bg-slate-50/40 transition-colors group">
-                    <td class="px-8 py-6">
-                      <div class="flex items-center gap-4">
-                        <div :class="`w-12 h-12 ${medicine.color} rounded-2xl shadow-sm border border-slate-200/50 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform`" x-text="medicine.name.charAt(0)">
-                        </div>
-                        <span class="text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
-                      </div>
-                    </td>
-                    <td class="px-8 py-6 text-center">
-                      <span class="px-4 py-1.5 bg-blue-50 text-blue-600 text-[11px] font-bold rounded-full border border-blue-100/50" x-text="medicine.category"></span>
-                    </td>
-                    <td class="px-8 py-6 text-center">
-                      <span class="text-sm font-semibold text-slate-500" x-text="medicine.batch"></span>
-                    </td>
-                    <td class="px-8 py-6 text-center">
-                      <span class="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-full border border-emerald-100/50" x-text="medicine.stock"></span>
-                    </td>
-                    <td class="px-8 py-6 text-center">
-                      <span class="text-[15px] font-black text-slate-800 tracking-tight" x-text="medicine.price"></span>
-                    </td>
-                    <td class="px-8 py-6">
-                      <div class="flex flex-col">
-                        <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-tighter" x-text="medicine.expiryStatus"></span>
-                        <span class="text-xs font-semibold text-slate-400 mt-0.5" x-text="medicine.expiryDate"></span>
-                      </div>
-                    </td>
-                    <td class="px-8 py-6">
-                      <div class="flex items-center justify-end gap-2">
-                        <button class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
-                          <i data-lucide="edit-3" class="w-4 h-4"></i>
-                        </button>
-                        <button class="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm">
-                          <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
+        <!-- Medical Inventory Section -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between px-4">
+            <h3 class="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+              <i data-lucide="pill" class="w-5 h-5 text-indigo-600"></i>
+              <span>Medical Inventory</span>
+            </h3>
           </div>
-          
-          <!-- Pagination -->
-          <div class="p-8 bg-slate-50/30 border-t border-slate-100/50 flex items-center justify-between">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Showing 4 medicines in stock</p>
-            <div class="flex gap-2">
-              <button class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 transition-colors shadow-sm">
-                <i data-lucide="chevron-left" class="w-4 h-4"></i>
-              </button>
-              <button class="w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-500/20 font-bold text-xs ring-4 ring-indigo-500/10">1</button>
-              <button class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 transition-colors shadow-sm">
-                <i data-lucide="chevron-right" class="w-4 h-4"></i>
-              </button>
+          <div class="glass-card rounded-[2.5rem] overflow-hidden animate-bento delay-2">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-50/50">
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Medicine</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Batch / Supplier</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Stock</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Cost</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Selling</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Expiry</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100/50">
+                  <template x-for="medicine in filteredMedicinesOnly">
+                    <tr class="hover:bg-slate-50/40 transition-colors group">
+                      <td class="px-8 py-6">
+                        <div class="flex items-center gap-4">
+                          <div :class="`w-12 h-12 ${medicine.color} rounded-2xl shadow-sm border border-slate-200/50 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform`" x-text="medicine.name.charAt(0)">
+                          </div>
+                          <div class="flex flex-col">
+                            <span class="text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" x-text="`${medicine.category} • ${medicine.type}`"></span>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="px-8 py-6 text-center">
+                        <div class="flex flex-col">
+                          <span class="text-sm font-bold text-slate-700" x-text="medicine.batch"></span>
+                          <span class="text-[11px] font-medium text-slate-400" x-text="medicine.supplier"></span>
+                        </div>
+                      </td>
+                      <td class="px-8 py-6 text-center">
+                        <span class="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-full border border-emerald-100/50" x-text="medicine.stock"></span>
+                      </td>
+                      <td class="px-8 py-6 text-center">
+                        <span class="text-sm font-bold text-slate-500" x-text="medicine.costPrice"></span>
+                      </td>
+                      <td class="px-8 py-6 text-center">
+                        <span class="text-[15px] font-black text-indigo-600 tracking-tight" x-text="medicine.sellingPrice"></span>
+                      </td>
+                      <td class="px-8 py-6">
+                        <div class="flex flex-col">
+                          <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-tighter" x-text="medicine.expiryStatus"></span>
+                          <span class="text-xs font-semibold text-slate-400 mt-0.5" x-text="medicine.expiryDate"></span>
+                        </div>
+                      </td>
+                      <td class="px-8 py-6">
+                        <div class="flex items-center justify-end gap-2">
+                          <button 
+                            @click="openEditModal(medicine, medicines.indexOf(medicine))"
+                            class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm cursor-pointer relative z-10"
+                          >
+                            <i data-lucide="edit-3" class="w-4 h-4 pointer-events-none"></i>
+                          </button>
+                          <button 
+                            @click="confirmDelete(medicine)"
+                            class="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm cursor-pointer relative z-10"
+                          >
+                            <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div class="p-8 bg-slate-50/30 border-t border-slate-100/50 flex items-center justify-between">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" x-text="`Showing ${filteredMedicinesOnly.length} medicines`"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- General Item Inventory Section -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between px-4 pt-10">
+            <h3 class="text-lg font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
+              <i data-lucide="package" class="w-5 h-5 text-emerald-600"></i>
+              <span>General Inventory</span>
+            </h3>
+          </div>
+          <div class="glass-card rounded-[2.5rem] overflow-hidden animate-bento delay-3">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-50/50">
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Product / Item</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Batch / Category</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">QTY</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Cost</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Selling</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Expiry</th>
+                    <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100/50">
+                  <template x-for="medicine in filteredGeneralItemsOnly">
+                    <tr class="hover:bg-slate-50/40 transition-colors group">
+                      <td class="px-8 py-6">
+                        <div class="flex items-center gap-4">
+                          <div :class="`w-12 h-12 ${medicine.color} rounded-2xl shadow-sm border border-slate-200/50 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform`" x-text="medicine.name.charAt(0)">
+                          </div>
+                          <div class="flex flex-col">
+                            <span class="text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
+                            <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest" x-text="medicine.barcode"></span>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="px-8 py-6 text-center">
+                        <div class="flex flex-col">
+                          <span class="text-sm font-bold text-slate-700" x-text="medicine.batch"></span>
+                          <span class="text-[11px] font-medium text-slate-400" x-text="medicine.category"></span>
+                        </div>
+                      </td>
+                      <td class="px-8 py-6 text-center">
+                        <span class="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-full border border-emerald-100/50" x-text="medicine.stock"></span>
+                      </td>
+                      <td class="px-8 py-6 text-center">
+                        <span class="text-sm font-bold text-slate-500" x-text="medicine.costPrice"></span>
+                      </td>
+                      <td class="px-8 py-6 text-center">
+                        <span class="text-[15px] font-black text-emerald-600 tracking-tight" x-text="medicine.sellingPrice"></span>
+                      </td>
+                      <td class="px-8 py-6">
+                        <div class="flex flex-col">
+                          <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-tighter" x-text="medicine.expiryStatus"></span>
+                          <span class="text-xs font-semibold text-slate-400 mt-0.5" x-text="medicine.expiryDate"></span>
+                        </div>
+                      </td>
+                      <td class="px-8 py-6">
+                        <div class="flex items-center justify-end gap-2">
+                          <button 
+                            @click="openEditModal(medicine, medicines.indexOf(medicine))"
+                            class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm cursor-pointer relative z-10"
+                          >
+                            <i data-lucide="edit-3" class="w-4 h-4 pointer-events-none"></i>
+                          </button>
+                          <button 
+                            @click="confirmDelete(medicine)"
+                            class="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm cursor-pointer relative z-10"
+                          >
+                            <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+            <div class="p-8 bg-slate-50/30 border-t border-slate-100/50 flex items-center justify-between">
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" x-text="`Showing ${filteredGeneralItemsOnly.length} items`"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add Medicine Modal -->
+        <div 
+          x-show="addModalOpen" 
+          x-cloak
+          class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-xl"
+          x-transition:enter="transition ease-out duration-300"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-200"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+        >
+          <div @click.away="addModalOpen = false" class="bg-white/90 backdrop-blur-2xl w-full max-w-xl rounded-[3rem] border border-white shadow-2xl overflow-hidden animate-bento">
+            <div class="p-10">
+              <div class="flex items-center justify-between mb-10">
+                <div>
+                  <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight">Add New Medicine</h3>
+                  <p class="text-sm text-slate-400 font-medium">Register a new medical item</p>
+                </div>
+                <button @click="addModalOpen = false" class="w-12 h-12 flex items-center justify-center bg-slate-50 rounded-2xl text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all">
+                  <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+              </div>
+
+              <form @submit.prevent="addMedicine" class="space-y-6">
+                <!-- Medicine form contents -->
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine Name</label>
+                    <input x-model="newMedicine.name" type="text" placeholder="e.g. Amoxicillin" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch Number</label>
+                    <input x-model="newMedicine.batch" type="text" placeholder="e.g. B-102" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
+                    <select x-model="newMedicine.category" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                      <template x-for="cat in categories">
+                        <option :value="cat" x-text="cat"></option>
+                      </template>
+                    </select>
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine Type</label>
+                    <select x-model="newMedicine.type" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                      <option value="Generic">Generic (Green)</option>
+                      <option value="Branded">Branded (Red)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
+                  <input x-model="newMedicine.supplier" type="text" placeholder="e.g. PharmaCorp" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                </div>
+
+                <div class="grid grid-cols-3 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Stock Units</label>
+                    <input x-model="newMedicine.stock" type="number" placeholder="0" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
+                    <input x-model="newMedicine.costPrice" type="number" step="0.01" placeholder="0.00" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
+                    <input x-model="newMedicine.sellingPrice" type="number" step="0.01" placeholder="0.00" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
+                  <input x-model="newMedicine.expiryDate" type="date" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                </div>
+
+                <div class="pt-6">
+                  <button type="submit" class="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                    <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                    <span>Save Medicine Record</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add General Item Modal -->
+        <div 
+          x-show="addGeneralModalOpen" 
+          x-cloak
+          class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-xl"
+          x-transition:enter="transition ease-out duration-300"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-200"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+        >
+          <div @click.away="addGeneralModalOpen = false" class="bg-white/90 backdrop-blur-2xl w-full max-w-xl rounded-[3rem] border border-white shadow-2xl overflow-hidden animate-bento">
+            <div class="p-10">
+              <div class="flex items-center justify-between mb-10">
+                <div>
+                  <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight">Add General Item</h3>
+                  <p class="text-sm text-slate-400 font-medium">Add non-medicine stock to inventory</p>
+                </div>
+                <button @click="addGeneralModalOpen = false" class="w-12 h-12 flex items-center justify-center bg-slate-50 rounded-2xl text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all">
+                  <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+              </div>
+
+              <form @submit.prevent="addGeneralItem" class="space-y-6">
+                <!-- Product Name and Barcode -->
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Product Name</label>
+                    <input x-model="newGeneralItem.name" type="text" placeholder="e.g. Surgical Masks" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Barcode</label>
+                    <input x-model="newGeneralItem.barcode" type="text" placeholder="e.g. 5012345678" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                </div>
+
+                <!-- Category and Batch # -->
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
+                    <select x-model="newGeneralItem.category" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                      <template x-for="cat in categories">
+                        <option :value="cat" x-text="cat"></option>
+                      </template>
+                    </select>
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch #</label>
+                    <input x-model="newGeneralItem.batch" type="text" placeholder="e.g. M-551" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                </div>
+
+                <!-- Expiry Date and QTY -->
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
+                    <input x-model="newGeneralItem.expiryDate" type="date" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">QTY (Units)</label>
+                    <input x-model="newGeneralItem.stock" type="number" placeholder="0" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                </div>
+
+                <!-- Cost and Selling -->
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
+                    <input x-model="newGeneralItem.costPrice" type="number" step="0.01" placeholder="0.00" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
+                    <input x-model="newGeneralItem.sellingPrice" type="number" step="0.01" placeholder="0.00" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                </div>
+
+                <div class="pt-6">
+                  <button type="submit" class="w-full py-5 bg-emerald-600 text-white font-bold rounded-2xl shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                    <i data-lucide="package-plus" class="w-5 h-5"></i>
+                    <span>Add to Inventory</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Edit Medicine Modal -->
+        <div 
+          x-show="editModalOpen" 
+          x-cloak
+          class="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-xl"
+          x-transition:enter="transition ease-out duration-300"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-200"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+        >
+          <div @click.away="editModalOpen = false" class="bg-white/90 backdrop-blur-2xl w-full max-w-xl rounded-[3rem] border border-white shadow-2xl overflow-hidden animate-bento">
+            <div class="p-10">
+              <div class="flex items-center justify-between mb-10">
+                <div>
+                  <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight" x-text="editingKind === 'Medicine' ? 'Edit Medicine' : 'Edit Item'"></h3>
+                  <p class="text-sm text-slate-400 font-medium">Update inventory record details</p>
+                </div>
+                <button @click="editModalOpen = false" class="w-12 h-12 flex items-center justify-center bg-slate-50 rounded-2xl text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all">
+                  <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+              </div>
+
+              <form @submit.prevent="saveEdit" class="space-y-6">
+                <!-- Product/Medicine Name and Barcode/Batch -->
+                <div class="grid grid-cols-2 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest" x-text="editingKind === 'Medicine' ? 'Medicine Name' : 'Product Name'"></label>
+                    <input x-model="editingMedicine.name" type="text" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest" x-text="editingKind === 'Medicine' ? 'Batch #' : 'Barcode'"></label>
+                    <input x-model="editingMedicine[editingKind === 'Medicine' ? 'batch' : 'barcode']" type="text" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                </div>
+
+                <!-- Category and Batch/Type -->
+                <div class="grid grid-cols-2 gap-6">
+                  <div :class="editingKind === 'Medicine' ? 'col-span-1' : 'col-span-2'" class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
+                    <select x-model="editingMedicine.category" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                      <template x-for="cat in categories">
+                        <option :value="cat" x-text="cat"></option>
+                      </template>
+                    </select>
+                  </div>
+                  <div x-show="editingKind === 'Medicine'" class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine Type</label>
+                    <select x-model="editingMedicine.type" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                      <option value="Generic">Generic (Green)</option>
+                      <option value="Branded">Branded (Red)</option>
+                    </select>
+                  </div>
+                  <!-- Show Batch # for General items in a separate field if needed, or use the Barcode field for both. User asked for Batch # for general too. -->
+                  <div x-show="editingKind === 'General'" class="space-y-2 col-span-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch #</label>
+                    <input x-model="editingMedicine.batch" type="text" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
+                  <input x-model="editingMedicine.supplier" type="text" placeholder="e.g. PharmaCorp" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                </div>
+
+                <div class="grid grid-cols-3 gap-6">
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Stock Units</label>
+                    <input x-model="editingMedicine.stock" type="number" placeholder="0" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (?)</label>
+                    <input x-model="editingMedicine.costPrice" type="number" step="0.01" placeholder="0.00" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                  </div>
+                  <div class="space-y-2">
+                    <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (?)</label>
+                    <input x-model="editingMedicine.sellingPrice" type="number" step="0.01" placeholder="0.00" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold" required>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
+                  <input x-model="editingMedicine.expiryDate" type="date" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                </div>
+
+                <div class="pt-6">
+                  <button type="submit" class="w-full py-5 bg-indigo-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                    <i data-lucide="save" class="w-5 h-5"></i>
+                    <span>Save Changes</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Management Modal -->
+        <div 
+          x-show="categoryModalOpen" 
+          x-cloak
+          class="fixed inset-0 z-[80] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-xl"
+          x-transition:enter="transition ease-out duration-300"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-200"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+        >
+          <div @click.away="categoryModalOpen = false" class="bg-white/95 backdrop-blur-2xl w-full max-w-lg rounded-[3rem] border border-white shadow-2xl overflow-hidden animate-bento">
+            <div class="p-10">
+              <div class="flex items-center justify-between mb-8">
+                <div>
+                  <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight">Manage Categories</h3>
+                  <p class="text-sm text-slate-400 font-medium">Add or edit medicine types</p>
+                </div>
+                <button @click="categoryModalOpen = false" class="w-12 h-12 flex items-center justify-center bg-slate-50 rounded-2xl text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-all cursor-pointer">
+                  <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+              </div>
+
+              <!-- Add New Category -->
+              <div class="flex gap-4 mb-8">
+                <input 
+                  type="text" 
+                  x-model="newCategoryName" 
+                  placeholder="New category name..." 
+                  class="flex-1 px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
+                  @keyup.enter="addCategory"
+                >
+                <button 
+                  @click="addCategory"
+                  class="px-6 py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all cursor-pointer"
+                >
+                  <i data-lucide="plus" class="w-5 h-5"></i>
+                </button>
+              </div>
+
+              <!-- Categories List -->
+              <div class="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                <template x-for="(cat, index) in categories" :key="index">
+                  <div class="flex items-center justify-between p-4 bg-slate-50/50 border border-slate-100 rounded-2xl group hover:bg-white hover:shadow-sm transition-all">
+                    <!-- Display Mode -->
+                    <template x-if="editingCategoryIndex !== index">
+                      <div class="flex items-center justify-between w-full">
+                        <span class="font-bold text-slate-700" x-text="cat"></span>
+                        <div class="flex gap-2">
+                          <button @click="startEditCategory(index)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-all cursor-pointer">
+                            <i data-lucide="edit-2" class="w-4 h-4"></i>
+                          </button>
+                          <button @click="confirmDeleteCategory(index)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-500 transition-all cursor-pointer">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </template>
+                    
+                    <!-- Edit Mode -->
+                    <template x-if="editingCategoryIndex === index">
+                      <div class="flex items-center gap-2 w-full">
+                        <input 
+                          type="text" 
+                          x-model="editingCategoryName" 
+                          class="flex-1 px-4 py-2 bg-white border border-indigo-200 rounded-xl focus:outline-none font-semibold text-slate-700"
+                          @keyup.enter="saveCategoryEdit"
+                          @keyup.escape="cancelCategoryEdit"
+                          x-init="$el.focus()"
+                        >
+                        <button @click="saveCategoryEdit" class="text-emerald-500 p-2 cursor-pointer">
+                          <i data-lucide="check" class="w-5 h-5"></i>
+                        </button>
+                        <button @click="cancelCategoryEdit" class="text-slate-400 p-2 cursor-pointer">
+                          <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Delete Confirmation Modal -->
+        <div 
+          x-show="deleteConfirmOpen" 
+          x-cloak
+          class="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-xl"
+          x-transition:enter="transition ease-out duration-300"
+          x-transition:enter-start="opacity-0 scale-95"
+          x-transition:enter-end="opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-200"
+          x-transition:leave-start="opacity-100 scale-100"
+          x-transition:leave-end="opacity-0 scale-95"
+        >
+          <div @click.away="deleteConfirmOpen = false" class="bg-white/95 backdrop-blur-2xl w-full max-w-md rounded-[3rem] border border-white shadow-2xl p-10 text-center animate-bento">
+            <div class="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mx-auto mb-6">
+              <i data-lucide="alert-circle" class="w-10 h-10"></i>
+            </div>
+            <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight">Confirm Deletion</h3>
+            <p class="text-sm text-slate-400 font-medium mt-2">Are you sure you want to remove <span class="text-slate-800 font-bold" x-text="itemToDelete ? itemToDelete.name : ''"></span> from the inventory? This action cannot be undone.</p>
+            
+            <div class="grid grid-cols-2 gap-4 mt-10">
+              <button @click="deleteConfirmOpen = false" class="py-4 bg-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-200 transition-all">Cancel</button>
+              <button @click="finalDelete" class="py-4 bg-rose-500 text-white font-bold rounded-2xl shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all">Delete Record</button>
             </div>
           </div>
         </div>
