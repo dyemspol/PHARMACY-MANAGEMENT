@@ -70,11 +70,20 @@
 
     <div class="bg-mesh"></div>
 
-    <!-- Sidebar -->
     <aside 
       class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
+      <!-- Mobile Toggle Arrow (Overlapping Edge) -->
+      <button 
+        x-show="sidebarOpen"
+        x-cloak
+        @click="sidebarOpen = false" 
+        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-teal-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-teal-500/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all"
+      >
+        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+      </button>
+
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
         <div class="p-8">
           <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
@@ -140,13 +149,13 @@
       <div class="flex-1 p-6 md:p-8 space-y-8 overflow-y-auto max-h-screen hide-scrollbar">
         <!-- Header -->
         <div class="flex items-center justify-between">
-          <div class="flex items-center gap-4">
-            <button @click="sidebarOpen = !sidebarOpen" class="w-12 h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
-              <i data-lucide="menu" class="w-6 h-6"></i>
+          <div class="flex items-center gap-4 md:gap-6">
+            <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
+              <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6"></i>
             </button>
             <div>
-              <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Point of Sale</h2>
-              <p class="text-sm text-slate-400 font-medium">Quick checkout and bill generation</p>
+              <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Point of Sale</h2>
+              <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap">Quick checkout and bill generation</p>
             </div>
           </div>
           <div class="hidden sm:flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
