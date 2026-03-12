@@ -17,6 +17,7 @@
     
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -25,7 +26,21 @@
       [x-cloak] { display: none !important; }
     </style>
   </head>
-  <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ sidebarOpen: true }">
+  <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ sidebarOpen: window.innerWidth > 1024 }">
+    
+    <!-- Mobile Sidebar Backdrop -->
+    <div 
+      x-show="sidebarOpen" 
+      @click="sidebarOpen = false" 
+      x-cloak
+      class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+    ></div>
     
     <div class="bg-mesh"></div>
 
@@ -34,6 +49,16 @@
       class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
+      <!-- Mobile Toggle Arrow (Overlapping Edge) -->
+      <button 
+        x-show="sidebarOpen"
+        x-cloak
+        @click="sidebarOpen = false" 
+        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-indigo-500/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all"
+      >
+        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+      </button>
+
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
         <!-- Logo Area -->
         <div class="p-8">
@@ -72,34 +97,15 @@
             <span class="font-semibold text-[15px]">Sales History</span>
           </a>
 
-          <a href="#" class="nav-link w-full">
-            <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Restocking</span>
-          </a>
 
-          <a href="#" class="nav-link w-full">
+
+          <a href="reports.html" class="nav-link w-full">
             <i data-lucide="file-text" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Reports</span>
           </a>
 
-          <a href="#" class="nav-link w-full">
-            <i data-lucide="truck" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Logistics</span>
-          </a>
 
-          <div class="my-6 border-t border-slate-100/50 mx-4"></div>
-          
-          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Administration</p>
 
-          <a href="#" class="nav-link w-full">
-            <i data-lucide="users" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Staff Management</span>
-          </a>
-
-          <a href="#" class="nav-link w-full">
-            <i data-lucide="settings-2" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Settings</span>
-          </a>
         </nav>
 
         <!-- Logout -->
@@ -116,16 +122,16 @@
     <main class="lg:ml-72 min-h-screen transition-all duration-500">
       
       <!-- Top Header -->
-      <header class="h-24 flex items-center justify-between px-10 sticky top-0 z-40">
-        <div class="flex items-center gap-6">
-          <button @click="sidebarOpen = !sidebarOpen" class="w-12 h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
-            <i data-lucide="menu" class="w-6 h-6"></i>
+      <header class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-4 sticky top-0 z-40 bg-white/40 backdrop-blur-md">
+        <div class="flex items-center gap-4 md:gap-6">
+          <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
+            <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6"></i>
           </button>
           <div>
-            <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">System Overview</h2>
-            <p class="text-sm text-slate-400 font-medium flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Synchronized: Wednesday, Sep 10, 2025
+            <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">System Overview</h2>
+            <p class="text-[10px] md:text-sm text-slate-400 font-medium flex items-center gap-2 whitespace-nowrap">
+              <span class="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Synchronized: Sep 10, 2025
             </p>
           </div>
         </div>
@@ -146,16 +152,16 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 auto-rows-[160px]">
           
           <!-- Medicines (Large) -->
-          <div class="lg:col-span-2 lg:row-span-2 glass-card rounded-[2.5rem] p-10 flex flex-col justify-between animate-bento delay-1 overflow-hidden relative">
+          <div class="md:col-span-2 row-span-2 glass-card rounded-[2.5rem] p-8 md:p-10 flex flex-col justify-between animate-bento delay-1 overflow-hidden relative">
             <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl"></div>
             <div>
               <div class="icon-box bg-teal-500 text-white shadow-lg shadow-teal-500/20 mb-6">
                 <i data-lucide="pill" class="w-6 h-6"></i>
               </div>
-              <h3 class="text-slate-400 font-bold uppercase tracking-widest text-[13px]">Active Inventory</h3>
-              <p class="text-6xl font-extrabold text-slate-800 mt-4 tracking-tighter">5,024</p>
+              <h3 class="text-slate-400 font-bold uppercase tracking-widest text-[12px] md:text-[13px]">Active Inventory</h3>
+              <p class="text-5xl md:text-6xl font-extrabold text-slate-800 mt-4 tracking-tighter">5,024</p>
             </div>
-            <div class="flex items-center gap-2 text-emerald-600 font-bold text-sm bg-emerald-50 w-fit px-4 py-2 rounded-full">
+            <div class="flex items-center gap-2 text-emerald-600 font-bold text-xs md:text-sm bg-emerald-50 w-fit px-4 py-2 rounded-full mt-4">
               <i data-lucide="trending-up" class="w-4 h-4"></i>
               <span>+12.5% vs yesterday</span>
             </div>
