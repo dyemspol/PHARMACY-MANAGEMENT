@@ -14,6 +14,7 @@
     
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -22,16 +23,127 @@
       [x-cloak] { display: none !important; }
     </style>
   </head>
-  <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ sidebarOpen: true }">
+  <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ 
+    sidebarOpen: true, 
+    editModalOpen: false,
+    medicines: [
+      { name: 'Paracetamol', category: 'Pain Relief', batch: 'N/A', stock: '37 units', price: 'GHC2000.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-teal-50 text-teal-600' },
+      { name: 'Doliprane', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: 'GHC200.00', expiryStatus: 'Good', expiryDate: '10/24/2030', color: 'bg-amber-50 text-amber-600' },
+      { name: 'Aspirine', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: 'GHC150.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-rose-50 text-rose-600' },
+      { name: 'Tramadol', category: 'Pain Relief', batch: 'N/A', stock: '30 units', price: 'GHC2000.00', expiryStatus: 'Good', expiryDate: '10/9/2031', color: 'bg-blue-50 text-blue-600' }
+    ],
+    selectedMedicine: {}
+  }">
     
     <div class="bg-mesh"></div>
+
+    <!-- Sidebar (omitted for brevity in replace call but remains same) -->
+    <!-- ... -->
+
+    <!-- Modal Overlay -->
+    <div 
+      x-show="editModalOpen" 
+      x-cloak 
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed inset-0 z-60 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"
+    >
+      <!-- Modal Content -->
+      <div 
+        @click.away="editModalOpen = false"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+        class="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-bento"
+      >
+        <div class="px-10 py-8 border-b border-slate-100 flex items-center justify-between bg-white">
+          <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Edit Medicine</h2>
+          <button @click="editModalOpen = false" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 transition-colors">
+            <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+          </button>
+        </div>
+
+        <div class="p-10 space-y-6 max-h-[70vh] overflow-y-auto hide-scrollbar">
+          <div class="grid grid-cols-2 gap-6">
+            <!-- Name -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Medicine Name <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="selectedMedicine.name" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Category -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Category <span class="text-rose-500">*</span></label>
+              <select x-model="selectedMedicine.category" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700 appearance-none">
+                <option>Pain Relief</option>
+                <option>Antibiotics</option>
+                <option>Antiseptics</option>
+                <option>Vitamins</option>
+              </select>
+            </div>
+            <!-- Batch -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Batch Number <span class="text-slate-300">(optional)</span></label>
+              <input type="text" x-model="selectedMedicine.batch" placeholder="Enter batch number" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Stock -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Stock Quantity <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="selectedMedicine.stock" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Expiry -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Expiration Date <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="selectedMedicine.expiryDate" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Price -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Unit Price (GHC) <span class="text-rose-500">*</span></label>
+              <input type="text" x-model="selectedMedicine.price" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
+            </div>
+            <!-- Purchase Price -->
+            <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Purchase Price <span class="text-rose-500">*</span></label>
+              <input type="text" value="1000" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
+            </div>
+             <!-- Min Stock -->
+             <div class="space-y-2">
+              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Minimum Stock <span class="text-rose-500">*</span></label>
+              <input type="text" value="28" class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
+            </div>
+          </div>
+
+          <!-- Product Image Mockup -->
+          <div class="space-y-2">
+            <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Product Image <span class="text-slate-300">(optional)</span></label>
+            <div class="flex items-center gap-4">
+              <div class="flex-1 h-32 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 hover:border-indigo-500 transition-colors cursor-pointer group">
+                <i data-lucide="upload-cloud" class="w-8 h-8 text-slate-300 group-hover:text-indigo-500 transition-colors"></i>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Choose File</p>
+              </div>
+              <div class="w-32 h-32 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-center overflow-hidden">
+                <div :class="`w-14 h-14 ${selectedMedicine.color} rounded-2xl flex items-center justify-center font-bold text-xl`" x-text="selectedMedicine.name ? selectedMedicine.name.charAt(0) : ''"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-10 py-8 bg-slate-50/50 border-t border-slate-100 flex justify-end gap-3">
+          <button @click="editModalOpen = false" class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Cancel</button>
+          <button @click="editModalOpen = false" class="px-10 py-3 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all">Save Changes</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Sidebar -->
     <aside 
       class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
-      <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
+      <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
         <div class="p-8">
           <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
             <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
@@ -83,19 +195,6 @@
             <span class="font-semibold text-[15px]">Logistics</span>
           </a>
 
-          <div class="my-6 border-t border-slate-100/50 mx-4"></div>
-          
-          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Administration</p>
-
-          <a href="#" class="nav-link w-full">
-            <i data-lucide="users" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Staff Management</span>
-          </a>
-
-          <a href="#" class="nav-link w-full">
-            <i data-lucide="settings-2" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Settings</span>
-          </a>
         </nav>
 
         <!-- Logout -->
@@ -135,7 +234,7 @@
       <div class="p-10 space-y-8">
         
         <!-- Search & Filter Area -->
-        <div class="bg-white/50 backdrop-blur-xl border border-white/40 p-2 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center animate-bento">
+        <div class="bg-white/50 backdrop-blur-xl border border-white/40 p-2 rounded-4xl flex flex-col md:flex-row gap-4 items-center animate-bento">
           <div class="relative flex-1 w-full p-2">
             <i data-lucide="search" class="absolute left-10 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
             <input type="text" placeholder="Search medicines..." class="w-full pl-16 pr-8 py-5 bg-white border border-slate-100 rounded-4xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all text-sm shadow-sm font-medium">
@@ -164,14 +263,7 @@
                   <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100/50" x-data="{
-                medicines: [
-                  { name: 'Paracetamol', category: 'Pain Relief', batch: 'N/A', stock: '37 units', price: 'GHC2000.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-teal-50 text-teal-600' },
-                  { name: 'Doliprane', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: 'GHC200.00', expiryStatus: 'Good', expiryDate: '10/24/2030', color: 'bg-amber-50 text-amber-600' },
-                  { name: 'Aspirine', category: 'Pain Relief', batch: 'N/A', stock: '25 units', price: 'GHC150.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-rose-50 text-rose-600' },
-                  { name: 'Tramadol', category: 'Pain Relief', batch: 'N/A', stock: '30 units', price: 'GHC2000.00', expiryStatus: 'Good', expiryDate: '10/9/2031', color: 'bg-blue-50 text-blue-600' }
-                ]
-              }">
+              <tbody class="divide-y divide-slate-100/50">
                 <template x-for="medicine in medicines">
                   <tr class="hover:bg-slate-50/40 transition-colors group">
                     <td class="px-8 py-6">
@@ -201,7 +293,7 @@
                     </td>
                     <td class="px-8 py-6">
                       <div class="flex items-center justify-end gap-2">
-                        <button class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                        <button @click="selectedMedicine = {...medicine}; editModalOpen = true" class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
                           <i data-lucide="edit-3" class="w-4 h-4"></i>
                         </button>
                         <button class="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm">
@@ -235,7 +327,18 @@
 
     <script type="module" src="/src/main.js"></script>
     <script>
+      document.addEventListener('alpine:init', () => {
+        lucide.createIcons();
+      });
+      // Watcher for modal to refresh icons
+      document.addEventListener('alpine:initialized', () => {
+        lucide.createIcons();
+      });
+    </script>
+    <script>
       lucide.createIcons();
     </script>
   </body>
+</html>
+
 </html>
