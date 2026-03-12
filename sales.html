@@ -24,7 +24,7 @@
     </style>
   </head>
   <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ 
-    sidebarOpen: true,
+    sidebarOpen: window.innerWidth > 1024,
     saleDetailsModal: false,
     selectedSale: {
       id: '#TRX-F36D1D',
@@ -145,6 +145,20 @@
 
 
 
+
+    <!-- Mobile Sidebar Backdrop -->
+    <div 
+      x-show="sidebarOpen" 
+      @click="sidebarOpen = false" 
+      x-cloak
+      class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+    ></div>
 
     <div class="bg-mesh"></div>
 
