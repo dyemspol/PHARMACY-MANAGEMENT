@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sales History | DavaoDeOro</title>
+    <link href="/src/style.css" rel="stylesheet" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <style>
+      [x-cloak] { display: none !important; }
+    </style>
+  </head>
+  <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ sidebarOpen: true }">
+    
+    <div class="bg-mesh"></div>
+
+    <!-- Sidebar -->
+    <aside 
+      class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+    >
+      <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
+        <div class="p-8">
+          <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
+            <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
+              <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-cover">
+            </div>
+            <div>
+              <h1 class="text-xl font-extrabold tracking-tight text-slate-800 leading-none">DavaoDeOro</h1>
+              <span class="text-[10px] font-bold uppercase tracking-widest text-teal-600 mt-1 block">Pharmacy</span>
+            </div>
+          </a>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
+          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
+          
+          <a href="index.html" class="nav-link w-full">
+            <i data-lucide="layout-grid" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Dashboard</span>
+          </a>
+
+          <a href="inventory.html" class="nav-link w-full">
+            <i data-lucide="package" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Inventory</span>
+          </a>
+
+          <a href="#" class="nav-link w-full">
+            <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">POS Terminal</span>
+          </a>
+
+          <a href="sales.html" class="nav-link w-full active">
+            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Sales History</span>
+          </a>
+
+          <a href="#" class="nav-link w-full">
+            <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Restocking</span>
+          </a>
+
+          <a href="#" class="nav-link w-full">
+            <i data-lucide="file-text" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Reports</span>
+          </a>
+
+          <a href="#" class="nav-link w-full">
+            <i data-lucide="truck" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Logistics</span>
+          </a>
+
+          <div class="my-6 border-t border-slate-100/50 mx-4"></div>
+          
+          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Administration</p>
+
+          <a href="#" class="nav-link w-full">
+            <i data-lucide="users" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Staff Management</span>
+          </a>
+
+          <a href="#" class="nav-link w-full">
+            <i data-lucide="settings-2" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Settings</span>
+          </a>
+        </nav>
+
+        <!-- Logout -->
+        <div class="p-6 mt-auto">
+          <button class="w-full flex items-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-[2rem] transition-all duration-300 font-bold text-sm group">
+            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i>
+            <span>Logout Account</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Content -->
+    <main class="lg:ml-72 min-h-screen transition-all duration-500">
+      
+      <!-- Top Header -->
+      <header class="h-24 flex items-center justify-between px-10 sticky top-0 z-40">
+        <div class="flex items-center gap-6">
+          <button @click="sidebarOpen = !sidebarOpen" class="w-12 h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
+            <i data-lucide="menu" class="w-6 h-6"></i>
+          </button>
+          <div>
+            <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Sales History</h2>
+            <p class="text-sm text-slate-400 font-medium">Monitoring financial transactions</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+          <button class="px-6 py-3 bg-teal-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all">
+            <i data-lucide="download-cloud" class="w-4 h-4"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Sales Content -->
+      <div class="p-10 space-y-8">
+        
+        <!-- Search & Filter Area -->
+        <div class="bg-white/50 backdrop-blur-xl border border-white/40 p-6 rounded-[2.5rem] flex flex-col md:flex-row gap-4 items-center animate-bento">
+          <div class="relative flex-1 w-full">
+            <i data-lucide="search" class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
+            <input type="text" placeholder="Filter by Sale ID, Medicine, or Department..." class="w-full pl-14 pr-6 py-5 bg-white border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm font-medium">
+          </div>
+          <div class="w-full md:w-64">
+            <input type="date" class="w-full px-6 py-5 bg-white border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm font-medium cursor-pointer">
+          </div>
+          <button class="w-16 h-16 flex items-center justify-center bg-white border border-slate-100 rounded-3xl hover:bg-slate-50 transition-colors shadow-sm">
+            <i data-lucide="sliders-horizontal" class="w-5 h-5 text-slate-600"></i>
+          </button>
+        </div>
+
+        <!-- Table View -->
+        <div class="glass-card rounded-[2.5rem] overflow-hidden animate-bento delay-2">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50/50">
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Transaction ID</th>
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Date & Timestamp</th>
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Items Detail</th>
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Total Amount</th>
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Operations</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100/50">
+                <template x-for="sale in [
+                  { id: '#TRX-F36D1D', date: 'Sep 10, 2025', time: '09:18 AM', items: '1 item(s)', units: '4 units', total: '₱2,000.00' },
+                  { id: '#TRX-B65B87', date: 'Sep 10, 2025', time: '08:56 AM', items: '3 item(s)', units: '12 units', total: '₱4,800.00' },
+                  { id: '#TRX-E9609C', date: 'Sep 09, 2025', time: '06:52 PM', items: '2 item(s)', units: '2 units', total: '₱12,020.00' },
+                  { id: '#TRX-A0A25C', date: 'Sep 09, 2025', time: '04:59 PM', items: '1 item(s)', units: '1 units', total: '₱950.00' },
+                  { id: '#TRX-28141D', date: 'Sep 08, 2025', time: '11:42 AM', items: '8 item(s)', units: '24 units', total: '₱24,000.00' }
+                ]">
+                  <tr class="hover:bg-slate-50/30 transition-colors group">
+                    <td class="px-8 py-6">
+                      <span class="text-sm font-extrabold text-slate-800" x-text="sale.id"></span>
+                    </td>
+                    <td class="px-8 py-6">
+                      <p class="text-sm font-bold text-slate-700" x-text="sale.date"></p>
+                      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tight" x-text="sale.time"></p>
+                    </td>
+                    <td class="px-8 py-6">
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-slate-700" x-text="sale.items"></span>
+                        <span class="w-1 h-1 bg-slate-300 rounded-full"></span>
+                        <span class="text-[10px] text-teal-600 font-bold uppercase" x-text="sale.units"></span>
+                      </div>
+                    </td>
+                    <td class="px-8 py-6">
+                      <span class="text-lg font-black text-teal-600 tracking-tight" x-text="sale.total"></span>
+                    </td>
+                    <td class="px-8 py-6">
+                      <div class="flex items-center gap-3">
+                        <button class="w-10 h-10 flex items-center justify-center bg-teal-50 text-teal-600 rounded-xl hover:bg-teal-600 hover:text-white transition-all shadow-sm">
+                          <i data-lucide="file-text" class="w-4 h-4"></i>
+                        </button>
+                        <button class="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                          <i data-lucide="external-link" class="w-4 h-4"></i>
+                        </button>
+                        <button class="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm">
+                          <i data-lucide="printer" class="w-4 h-4"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- Pagination Demo -->
+          <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Showing 5 of 1,248 entries</p>
+            <div class="flex gap-2">
+              <button class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-teal-600 transition-colors shadow-sm">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+              </button>
+              <button class="w-10 h-10 flex items-center justify-center bg-teal-600 text-white rounded-xl shadow-lg shadow-teal-500/20 font-bold text-xs ring-4 ring-teal-500/10">1</button>
+              <button class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-600 hover:text-teal-600 transition-colors shadow-sm font-bold text-xs">2</button>
+              <button class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-teal-600 transition-colors shadow-sm">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+    <script>
+      lucide.createIcons();
+    </script>
+  </body>
+</html>
