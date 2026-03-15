@@ -1,4 +1,8 @@
 import './style.css'
+import './firebase.js'
+import * as db from './db.js'
+
+window.db = db;
 
 // Initialize icons on load
 document.addEventListener('DOMContentLoaded', () => {

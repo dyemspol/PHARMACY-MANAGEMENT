@@ -24,33 +24,133 @@
       .hide-scrollbar::-webkit-scrollbar { display: none; }
       .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
+    <script type="module" src="/src/db.js"></script>
   </head>
   <body class="antialiased text-slate-900 overflow-x-hidden bg-[#F8FAFC]" x-data="{ 
     sidebarOpen: window.innerWidth > 1024,
+    showSuccess: false,
+    lastTransactionId: '',
+    lastTransactionDate: '',
+    lastTransactionItems: [],
+    lastTransactionTotal: 0,
+    lastTransactionCash: 0,
+    lastTransactionChange: 0,
+    paymentModalOpen: false,
+    cashAmount: '',
+    changeAmount: 0,
     cart: [],
     searchQuery: '',
     selectedCategory: 'All',
-    medicines: [
-      { id: 1, name: 'Paracetamol', category: 'Pain Relief', price: 2000, stock: 37, color: 'bg-teal-50 text-teal-600' },
-      { id: 2, name: 'Doliprane', category: 'Pain Relief', price: 200, stock: 25, color: 'bg-amber-50 text-amber-600' },
-      { id: 3, name: 'Aspirine', category: 'Pain Relief', price: 150, stock: 25, color: 'bg-rose-50 text-rose-600' },
-      { id: 4, name: 'Tramadol', category: 'Pain Relief', price: 2000, stock: 30, color: 'bg-blue-50 text-blue-600' },
-      { id: 5, name: 'Amoxicillin', category: 'Antibiotics', price: 450, stock: 15, color: 'bg-purple-50 text-purple-600' },
-      { id: 6, name: 'Cetirizine', category: 'Allergy', price: 80, stock: 100, color: 'bg-indigo-50 text-indigo-600' }
-    ],
+    medicines: [],
+    
+    async init() {
+      console.log('POS Alpine init: Waiting for window.db...');
+      const waitForDb = setInterval(async () => {
+        if (window.db) {
+          clearInterval(waitForDb);
+          console.log('POS Database ready! Fetching inventory...');
+          this.medicines = await window.db.fetchInventory();
+          console.log('POS fetched medicines:', this.medicines);
+          lucide.createIcons();
+        }
+      }, 100);
+    },
+
     addToCart(medicine) {
+      console.log('Adding to cart:', medicine.name);
+      const stockNum = parseInt(String(medicine.stock).replace(' units', '')) || 0;
+      console.log('Parsed stock:', stockNum);
       const existing = this.cart.find(item => item.id === medicine.id);
       if (existing) {
-        existing.quantity++;
+        if (existing.quantity < stockNum) {
+          existing.quantity++;
+          console.log('Increased quantity to:', existing.quantity);
+        } else {
+          console.warn('Cannot add more: Stock limit reached');
+        }
       } else {
-        this.cart.push({ ...medicine, quantity: 1 });
+        if (stockNum > 0) {
+          this.cart.push({ ...medicine, quantity: 1 });
+          console.log('Added new item to cart');
+        } else {
+          console.warn('Cannot add: Out of stock');
+        }
       }
     },
     removeFromCart(id) {
       this.cart = this.cart.filter(item => item.id !== id);
     },
     getTotal() {
-      return this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      return this.cart.reduce((sum, item) => {
+        let priceValue = item.sellingPrice;
+        if(typeof priceValue === 'string') {
+          priceValue = parseFloat(priceValue.replace('₱', '')) || 0;
+        }
+        return sum + (priceValue * item.quantity);
+      }, 0);
+    },
+    openPaymentModal() {
+      if (this.cart.length === 0) return;
+      this.cashAmount = '';
+      this.changeAmount = 0;
+      this.paymentModalOpen = true;
+    },
+    calculateChange() {
+      const total = this.getTotal();
+      const cash = parseFloat(this.cashAmount) || 0;
+      this.changeAmount = Math.max(0, cash - total);
+      return this.changeAmount;
+    },
+    isValidPayment() {
+      const total = this.getTotal();
+      const cash = parseFloat(this.cashAmount) || 0;
+      return cash >= total && total > 0;
+    },
+    async confirmPayment() {
+      if (!this.isValidPayment()) return;
+
+      // Deduction logic
+      for (const item of this.cart) {
+        const med = this.medicines.find(m => m.id === item.id);
+        if (med) {
+          // Parse old stock, assuming string like '50 units'
+          let currentStockNum = parseInt(String(med.stock).replace(' units', ''));
+          let newStockNum = currentStockNum - item.quantity;
+          if (newStockNum < 0) newStockNum = 0;
+          
+          let newStockStr = newStockNum + ' units';
+          med.stock = newStockStr; // update locally
+
+          // update globally in firestore
+          await window.db.updateInventoryItem(med.id, { stock: newStockStr });
+        }
+      }
+      
+      this.lastTransactionId = 'TRX-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+      this.lastTransactionDate = new Date().toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      this.lastTransactionItems = [...this.cart].map(item => {
+         let priceValue = item.sellingPrice;
+         if(typeof priceValue === 'string') {
+            priceValue = parseFloat(priceValue.replace('₱', '')) || 0;
+         }
+         return { ...item, numericPrice: priceValue };
+      });
+      this.lastTransactionTotal = this.getTotal();
+      this.lastTransactionCash = parseFloat(this.cashAmount);
+      this.lastTransactionChange = this.changeAmount;
+      
+      this.paymentModalOpen = false;
+      this.showSuccess = true;
+      this.cart = [];
+      setTimeout(() => {
+        this.showSuccess = false;
+        lucide.createIcons();
+      }, 3000);
+      
+      // Auto-print immediately after payment confirmation
+      setTimeout(() => {
+        window.print();
+      }, 100);
     }
   }">
     
@@ -68,10 +168,189 @@
       x-transition:leave-end="opacity-0"
     ></div>
 
-    <div class="bg-mesh"></div>
+    <!-- Success Toast -->
+    <div 
+      x-show="showSuccess"
+      x-cloak
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0 translate-y-4"
+      x-transition:enter-end="opacity-100 translate-y-0"
+      x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100 translate-y-0"
+      x-transition:leave-end="opacity-0 translate-y-4"
+      class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-emerald-600 text-white px-8 py-4 rounded-3xl shadow-2xl shadow-emerald-500/40 flex items-center gap-4 border border-white/20"
+    >
+      <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+        <i data-lucide="check" class="w-6 h-6 text-white"></i>
+      </div>
+      <div>
+        <p class="font-bold">Payment Successful!</p>
+        <p class="text-[10px] font-medium opacity-80 uppercase tracking-widest" x-text="'ID: ' + lastTransactionId + ' | Change: ₱ ' + changeAmount.toFixed(2)"></p>
+      </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div 
+      x-show="paymentModalOpen" 
+      x-cloak
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6"
+    >
+      <div 
+        x-show="paymentModalOpen" 
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        @click="paymentModalOpen = false"
+        class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+      ></div>
+
+      <div 
+        x-show="paymentModalOpen"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+        x-transition:leave-end="opacity-0 scale-95 translate-y-4"
+        class="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+      >
+        <div class="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+          <h2 class="text-xl font-extrabold text-slate-800 tracking-tight">Complete Payment</h2>
+          <button @click="paymentModalOpen = false" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 transition-colors">
+            <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+          </button>
+        </div>
+
+        <div class="p-8 space-y-6">
+          <div class="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100">
+            <span class="text-sm font-bold text-slate-500 uppercase tracking-widest">Total Amount</span>
+            <span class="text-3xl font-black text-teal-600 tracking-tight">₱ <span x-text="getTotal().toFixed(2)"></span></span>
+          </div>
+
+          <div class="space-y-3">
+            <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Cash Received (₱)</label>
+            <div class="relative">
+              <span class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">₱</span>
+              <input 
+                type="number" 
+                x-model="cashAmount" 
+                @input="calculateChange()"
+                placeholder="0.00" 
+                class="w-full pl-12 pr-6 py-5 bg-white border-2 border-slate-100 rounded-3xl focus:outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all font-black text-2xl text-slate-800"
+              >
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between px-2 pt-2">
+            <span class="text-sm font-bold text-slate-500">Change Due</span>
+            <span class="text-xl font-black text-slate-800" :class="calculateChange() > 0 ? 'text-emerald-600' : ''">₱ <span x-text="calculateChange().toFixed(2)"></span></span>
+          </div>
+        </div>
+
+        <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-3">
+          <button @click="paymentModalOpen = false" class="flex-1 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Cancel</button>
+          <button 
+            @click="confirmPayment()" 
+            :disabled="!isValidPayment()"
+            :class="!isValidPayment() ? 'opacity-50 cursor-not-allowed bg-slate-300 text-slate-500' : 'bg-teal-600 text-white shadow-lg shadow-teal-500/20 hover:bg-teal-700'"
+            class="flex-[2] py-4 font-bold rounded-2xl transition-all flex items-center justify-center gap-2"
+          >
+            <i data-lucide="check-circle" class="w-5 h-5"></i>
+            <span>Confirm Payment</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Print-Only Receipt -->
+    <div class="hidden print:block print:w-full print:absolute print:inset-0 print:bg-white print:z-[9999]" x-show="lastTransactionId !== ''">
+      <div class="w-full max-w-sm mx-auto bg-white overflow-hidden text-black">
+        <!-- Receipt Header -->
+        <div class="p-6 border-b border-dashed border-slate-300 flex flex-col items-center justify-center text-center space-y-2">
+            <div class="w-12 h-12 rounded-xl shadow-none flex items-center justify-center mb-2">
+                <img src="/src/img/logo.png" alt="Logo" class="w-8 h-8 object-contain">
+            </div>
+            <h2 class="text-xl font-black text-slate-800 tracking-tight leading-none print:text-black">DavaoDeOro Pharmacy</h2>
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest print:text-slate-800">Official Receipt</p>
+        </div>
+
+        <!-- Receipt Details -->
+        <div class="p-6 space-y-6">
+            <div class="flex justify-between text-xs font-medium text-slate-500 border-b border-dashed border-slate-200 pb-4 print:text-black print:border-black">
+                <div>
+                    <p>Date: <span class="font-bold text-slate-700 print:text-black" x-text="lastTransactionDate"></span></p>
+                    <p>TRX ID: <span class="font-bold text-slate-700 print:text-black" x-text="lastTransactionId"></span></p>
+                </div>
+                <div class="text-right">
+                    <p>Cashier: <span class="font-bold text-slate-700 print:text-black">Admin</span></p>
+                </div>
+            </div>
+
+            <!-- Items -->
+            <div class="space-y-3">
+                <div class="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2 print:text-black print:border-black">
+                    <span class="w-2/3">Item Description</span>
+                    <span class="w-1/3 text-right">Amount</span>
+                </div>
+                
+                <div class="space-y-3 max-h-48 overflow-y-auto pr-2 hide-scrollbar print:max-h-none print:overflow-visible">
+                    <template x-for="item in lastTransactionItems" :key="item.id">
+                        <div class="flex justify-between items-start text-sm print:text-black">
+                            <div class="w-2/3 pr-2">
+                                <p class="font-bold text-slate-800 print:text-black" x-text="item.name"></p>
+                                <p class="text-xs text-slate-500 font-medium print:text-black" x-text="item.quantity + ' x ₱ ' + item.numericPrice.toFixed(2)"></p>
+                            </div>
+                            <div class="w-1/3 text-right font-bold text-slate-700 print:text-black">
+                                ₱ <span x-text="(item.quantity * item.numericPrice).toFixed(2)"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Totals -->
+            <div class="border-t border-dashed border-slate-300 pt-4 space-y-2 print:border-black">
+                <div class="flex justify-between text-sm font-medium text-slate-500 print:text-black">
+                    <span>Subtotal</span>
+                    <span>₱ <span x-text="lastTransactionTotal.toFixed(2)"></span></span>
+                </div>
+                <div class="flex justify-between text-sm font-medium text-slate-500 print:text-black">
+                    <span>Tax (0%)</span>
+                    <span>₱ 0.00</span>
+                </div>
+                <div class="flex justify-between items-end pt-2">
+                    <span class="text-sm font-bold text-slate-800 uppercase print:text-black">Total Due</span>
+                    <span class="text-2xl font-black text-slate-900 tracking-tight print:text-black">₱ <span x-text="lastTransactionTotal.toFixed(2)"></span></span>
+                </div>
+            </div>
+
+            <!-- Payment Info -->
+            <div class="bg-slate-50 rounded-xl p-4 space-y-1 print:bg-transparent print:p-0 print:border-t print:border-dashed print:border-black print:pt-4">
+                <div class="flex justify-between text-xs font-bold text-slate-500 print:text-black">
+                    <span>Cash Tendered</span>
+                    <span class="text-slate-700 print:text-black">₱ <span x-text="lastTransactionCash.toFixed(2)"></span></span>
+                </div>
+                <div class="flex justify-between text-xs font-bold text-emerald-600 print:text-black">
+                    <span>Change</span>
+                    <span>₱ <span x-text="lastTransactionChange.toFixed(2)"></span></span>
+                </div>
+            </div>
+            
+            <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-4 print:text-black">
+                <p>Thank you for your business!</p>
+            </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div class="bg-mesh print:hidden"></div>
 
     <aside 
-      class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
+      class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0 print:hidden"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
       <!-- Mobile Toggle Arrow (Overlapping Edge) -->
@@ -143,7 +422,7 @@
     </aside>
 
     <!-- Main Content Area -->
-    <main class="lg:ml-72 min-h-screen transition-all duration-500 flex flex-col md:flex-row gap-0">
+    <main class="lg:ml-72 min-h-screen transition-all duration-500 flex flex-col md:flex-row gap-0 print:hidden">
       
       <!-- Center: Product Selection (Left when on main grid) -->
       <div class="flex-1 p-6 md:p-8 space-y-8 overflow-y-auto max-h-screen hide-scrollbar">
@@ -177,7 +456,7 @@
           </div>
 
           <div class="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
-            <template x-for="cat in ['All', 'Pain Relief', 'Antibiotics', 'Allergy', 'Vitamins', 'First Aid']">
+            <template x-for="cat in ['All', 'Pain Relief', 'Antibiotics', 'Vitamins', 'Cardiovascular', 'First Aid', 'Medical Supplies']">
               <button 
                 @click="selectedCategory = cat"
                 :class="selectedCategory === cat ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-100'"
@@ -190,28 +469,39 @@
 
         <!-- Products Grid -->
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-3 animate-bento delay-1">
-          <template x-for="med in medicines.filter(m => (selectedCategory === 'All' || m.category === selectedCategory) && m.name.toLowerCase().includes(searchQuery.toLowerCase()))" :key="med.id">
+          <template x-for="med in medicines.filter(m => (selectedCategory === 'All' || m.category === selectedCategory) && (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.barcode && m.barcode.includes(searchQuery)) || m.category.toLowerCase().includes(searchQuery.toLowerCase())))" :key="med.id">
             <div 
               @click="addToCart(med)"
-              class="glass-card p-3.5 rounded-2xl cursor-pointer group hover:border-teal-500/30 transition-all border border-white/40 shadow-sm"
+              :class="parseInt(String(med.stock).replace(' units', '')) === 0 ? 'opacity-60 grayscale cursor-not-allowed' : 'cursor-pointer hover:border-teal-500/30'"
+              class="glass-card p-3.5 rounded-2xl group transition-all border border-white/40 shadow-sm"
             >
               <div class="flex items-start justify-between mb-2.5">
                 <div :class="`w-9 h-9 ${med.color} rounded-xl flex items-center justify-center font-bold text-sm shadow-sm border border-black/5 group-hover:scale-105 transition-transform`" x-text="med.name.charAt(0)"></div>
-                <div class="bg-slate-50/80 px-2 py-0.5 rounded-full border border-slate-100/50">
-                  <span class="text-[8px] font-bold text-slate-400 uppercase tracking-tight" x-text="med.category"></span>
+                <div class="flex flex-col items-end gap-1">
+                  <span class="bg-slate-50/80 px-2 py-0.5 rounded-full border border-slate-100/50 text-[8px] font-bold text-slate-400 uppercase tracking-tight" x-text="med.category"></span>
+                  <template x-if="med.kind">
+                    <span :class="med.kind === 'Medicine' ? 'bg-teal-50 text-teal-600' : 'bg-indigo-50 text-indigo-600'" class="px-2 py-0.5 rounded-full text-[7px] font-black uppercase" x-text="med.kind"></span>
+                  </template>
+                  <template x-if="med.type">
+                    <span :class="med.type === 'Branded' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'" class="px-2 py-0.5 rounded-full text-[7px] font-black uppercase" x-text="med.type"></span>
+                  </template>
                 </div>
               </div>
               <div class="space-y-1">
                 <h3 class="text-xs font-bold text-slate-800 truncate" x-text="med.name"></h3>
                 <div class="flex items-center justify-between">
-                  <span class="text-lg font-black text-slate-900 tracking-tight">₱ <span x-text="med.price.toFixed(2)"></span></span>
-                  <span class="text-[10px] font-bold text-teal-600 uppercase" x-text="med.stock + ' in stock'"></span>
-
+                  <span class="text-lg font-black text-slate-900 tracking-tight" x-text="med.sellingPrice"></span>
+                  <span :class="parseInt(String(med.stock).replace(' units','')) < 5 ? 'text-rose-500' : 'text-teal-600'" class="text-[10px] font-bold uppercase" x-text="med.stock + ' in stock'"></span>
                 </div>
               </div>
               <div class="mt-2.5 pt-2.5 border-t border-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
                  <span class="text-[8px] font-bold text-teal-600 uppercase flex items-center gap-1">
-                   <i data-lucide="plus" class="w-2 h-2"></i> Quick Add
+                   <template x-if="parseInt(String(med.stock).replace(' units','')) > 0">
+                     <span class="flex items-center gap-1"><i data-lucide="plus" class="w-2 h-2"></i> Quick Add</span>
+                   </template>
+                   <template x-if="parseInt(String(med.stock).replace(' units','')) === 0">
+                     <span class="text-rose-500">Out of Stock</span>
+                   </template>
                  </span>
               </div>
             </div>
@@ -243,8 +533,13 @@
             <div class="flex items-center gap-4 animate-bento">
               <div :class="`w-12 h-12 ${item.color} rounded-2xl flex items-center justify-center font-bold text-sm shadow-sm`" x-text="item.name.charAt(0)"></div>
               <div class="flex-1">
-                <h4 class="text-sm font-bold text-slate-800" x-text="item.name"></h4>
-                <p class="text-xs font-medium text-slate-400">₱ <span x-text="item.price.toFixed(2)"></span> × <span x-text="item.quantity"></span></p>
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-bold text-slate-800" x-text="item.name"></h4>
+                  <template x-if="item.type">
+                    <span :class="item.type === 'Branded' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'" class="px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-widest" x-text="item.type"></span>
+                  </template>
+                </div>
+                <p class="text-xs font-medium text-slate-400"><span x-text="item.sellingPrice"></span> × <span x-text="item.quantity"></span></p>
               </div>
               <div class="flex items-center gap-3">
                 <button @click="if(item.quantity > 1) item.quantity--; else removeFromCart(item.id)" class="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg hover:bg-rose-50 hover:text-rose-500 transition-colors">
@@ -278,13 +573,18 @@
 
           <div class="grid grid-cols-2 gap-3">
             
-            <button class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-slate-100 transition-all gap-2 group">
+            <button @click="if(lastTransactionId) window.print(); else alert('No recent transaction');" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-slate-100 transition-all gap-2 group">
               <i data-lucide="printer" class="w-5 h-5 text-slate-400 group-hover:text-slate-600"></i>
               <span class="text-[10px] font-bold text-slate-600 uppercase">Receipt</span>
             </button>
           </div>
 
-          <button class="w-full py-5 bg-teal-600 text-white font-bold rounded-4xl shadow-lg shadow-teal-500/20 hover:bg-teal-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3 group">
+          <button 
+            @click="openPaymentModal()" 
+            :disabled="cart.length === 0" 
+            :class="cart.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-teal-700 active:scale-[0.98]'"
+            class="w-full py-5 bg-teal-600 text-white font-bold rounded-4xl shadow-lg shadow-teal-500/20 transition-all flex items-center justify-center gap-3 group"
+          >
             <span class="text-lg uppercase tracking-wider">Pay Now</span>
             <i data-lucide="arrow-right" class="w-5 h-5 transition-transform group-hover:translate-x-1"></i>
           </button>

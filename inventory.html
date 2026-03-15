@@ -26,6 +26,7 @@
       display: none !important;
     }
   </style>
+  <script type="module" src="/src/db.js"></script>
 </head>
 
 <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ 
@@ -39,21 +40,30 @@
       newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
       editingMedicine: { name: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
       editingKind: 'Medicine',
-      editingIndex: null,
+      editingId: null,
       itemToDelete: null,
-      medicines: [
-        { name: 'Paracetamol', kind: 'Medicine', category: 'Pain Relief', type: 'Generic', batch: 'B-102', supplier: 'PharmaCorp', stock: '37 units', costPrice: '₱15.00', sellingPrice: '₱20.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-teal-50 text-teal-600' },
-        { name: 'Doliprane', kind: 'Medicine', category: 'Pain Relief', type: 'Branded', batch: 'B-205', supplier: 'LifeMeds', stock: '25 units', costPrice: '₱150.00', sellingPrice: '₱200.00', expiryStatus: 'Good', expiryDate: '10/24/2030', color: 'bg-amber-50 text-amber-600' },
-        { name: 'Surgical Masks', kind: 'General', category: 'Medical Supplies', batch: 'M-551', supplier: 'SafeHealth', stock: '100 units', costPrice: '₱50.00', sellingPrice: '₱75.00', expiryStatus: 'Good', expiryDate: '01/01/2030', color: 'bg-indigo-50 text-indigo-600' },
-        { name: 'Aspirine', kind: 'Medicine', category: 'Pain Relief', type: 'Generic', batch: 'B-009', supplier: 'PharmaCorp', stock: '25 units', costPrice: '₱100.00', sellingPrice: '₱150.00', expiryStatus: 'Good', expiryDate: '11/24/2029', color: 'bg-rose-50 text-rose-600' },
-        { name: 'Tramadol', kind: 'Medicine', category: 'Pain Relief', type: 'Branded', batch: 'T-998', supplier: 'MedX', stock: '30 units', costPrice: '₱1500.00', sellingPrice: '₱2000.00', expiryStatus: 'Good', expiryDate: '10/9/2031', color: 'bg-blue-50 text-blue-600' }
-      ],
-      categories: ['Pain Relief', 'Antibiotics', 'Vitamins', 'Cardiovascular', 'First Aid'],
+      medicines: [],
+      categories: ['Pain Relief', 'Antibiotics', 'Vitamins', 'Cardiovascular', 'First Aid', 'Medical Supplies'],
       categoryModalOpen: false,
+      selectedCategory: 'All',
       newCategoryName: '',
       editingCategoryIndex: null,
       editingCategoryName: '',
       
+      async init() {
+        console.log('Inventory Alpine init: Waiting for window.db...');
+        // Small interval check to ensure window.db is ready
+        const waitForDb = setInterval(async () => {
+          if (window.db) {
+            clearInterval(waitForDb);
+            console.log('Database ready! Fetching inventory...');
+            this.medicines = await window.db.fetchInventory();
+            console.log('Fetched medicines:', this.medicines);
+            lucide.createIcons();
+          }
+        }, 100);
+      },
+
       addCategory() {
         if (!this.newCategoryName.trim()) return;
         if (!this.categories.includes(this.newCategoryName.trim())) {
@@ -101,16 +111,25 @@
         return this.medicines.filter(m => m.name.toLowerCase().includes(this.searchTerm.toLowerCase()));
       },
       get filteredMedicinesOnly() {
-        return this.medicines.filter(m => m.kind === 'Medicine' && m.name.toLowerCase().includes(this.searchTerm.toLowerCase()));
+        return this.medicines.filter(m => 
+          m.kind === 'Medicine' && 
+          (this.selectedCategory === 'All' || m.category === this.selectedCategory) &&
+          m.name.toLowerCase().includes(this.searchTerm.toLowerCase())
+        );
       },
       get filteredGeneralItemsOnly() {
-        return this.medicines.filter(m => (m.kind === 'General' || !m.kind) && m.name.toLowerCase().includes(this.searchTerm.toLowerCase()));
+        return this.medicines.filter(m => 
+          (m.kind === 'General' || !m.kind) && 
+          (this.selectedCategory === 'All' || m.category === this.selectedCategory) &&
+          m.name.toLowerCase().includes(this.searchTerm.toLowerCase())
+        );
       },
-      addMedicine() {
+      async addMedicine() {
         if (!this.newMedicine.name || !this.newMedicine.stock || !this.newMedicine.sellingPrice) return;
         const colors = ['bg-teal-50 text-teal-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
-        this.medicines.unshift({
+        
+        const itemToSave = {
           name: this.newMedicine.name,
           kind: 'Medicine',
           category: this.newMedicine.category,
@@ -123,16 +142,27 @@
           expiryStatus: 'Good',
           expiryDate: this.newMedicine.expiryDate || 'N/A',
           color: randomColor
-        });
-        this.newMedicine = { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
-        this.addModalOpen = false;
-        setTimeout(() => lucide.createIcons(), 50);
+        };
+        
+        try {
+          const newId = await window.db.addInventoryItem(itemToSave);
+          itemToSave.id = newId;
+
+          this.medicines.unshift(itemToSave);
+          this.newMedicine = { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
+          this.addModalOpen = false;
+          setTimeout(() => lucide.createIcons(), 50);
+        } catch (err) {
+          console.error(err);
+          alert('Error saving to database: ' + err.message + '. Please verify your changes to the Firebase Rules were Published!');
+        }
       },
-      addGeneralItem() {
+      async addGeneralItem() {
         if (!this.newGeneralItem.name || !this.newGeneralItem.stock || !this.newGeneralItem.sellingPrice) return;
         const colors = ['bg-teal-50 text-teal-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
-        this.medicines.unshift({
+        
+        const itemToSave = {
           name: this.newGeneralItem.name,
           kind: 'General',
           barcode: this.newGeneralItem.barcode || 'N/A',
@@ -146,17 +176,27 @@
           expiryStatus: 'Good',
           expiryDate: this.newGeneralItem.expiryDate || 'N/A',
           color: randomColor
-        });
-        this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
-        this.addGeneralModalOpen = false;
-        setTimeout(() => lucide.createIcons(), 50);
+        };
+
+        try {
+          const newId = await window.db.addInventoryItem(itemToSave);
+          itemToSave.id = newId;
+          
+          this.medicines.unshift(itemToSave);
+          this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
+          this.addGeneralModalOpen = false;
+          setTimeout(() => lucide.createIcons(), 50);
+        } catch (err) {
+          console.error(err);
+          alert('Error saving to database: ' + err.message + '. Please verify your changes to the Firebase Rules were Published!');
+        }
       },
-      openEditModal(medicine, index) {
-        this.editingIndex = index;
+      openEditModal(medicine) {
+        this.editingId = medicine.id;
         this.editingKind = medicine.kind || 'Medicine';
-        const stockVal = medicine.stock.replace(' units', '');
-        const costVal = medicine.costPrice.replace('₱', '');
-        const sellingVal = medicine.sellingPrice.replace('₱', '');
+        const stockVal = String(medicine.stock).replace(' units', '');
+        const costVal = String(medicine.costPrice).replace('₱', '');
+        const sellingVal = String(medicine.sellingPrice).replace('₱', '');
         this.editingMedicine = { 
           name: medicine.name, 
           barcode: medicine.barcode || '',
@@ -171,31 +211,43 @@
         };
         this.editModalOpen = true;
       },
-      saveEdit() {
-        if (this.editingIndex === null) return;
-        const target = this.medicines[this.editingIndex];
-        target.name = this.editingMedicine.name;
-        target.barcode = this.editingMedicine.barcode || 'N/A';
-        target.category = this.editingMedicine.category;
+      async saveEdit() {
+        if (!this.editingId) return;
+        
+        const updatedData = {
+          name: this.editingMedicine.name,
+          barcode: this.editingMedicine.barcode || 'N/A',
+          category: this.editingMedicine.category,
+          stock: this.editingMedicine.stock + ' units',
+          costPrice: '₱' + parseFloat(this.editingMedicine.costPrice || 0).toFixed(2),
+          sellingPrice: '₱' + parseFloat(this.editingMedicine.sellingPrice).toFixed(2),
+          supplier: this.editingMedicine.supplier || 'N/A',
+          batch: this.editingMedicine.batch || 'N/A',
+          expiryDate: this.editingMedicine.expiryDate || 'N/A'
+        };
+        
         if (this.editingKind === 'Medicine') {
-          target.type = this.editingMedicine.type;
+          updatedData.type = this.editingMedicine.type;
         }
-        target.stock = this.editingMedicine.stock + ' units';
-        target.costPrice = '₱' + parseFloat(this.editingMedicine.costPrice || 0).toFixed(2);
-        target.sellingPrice = '₱' + parseFloat(this.editingMedicine.sellingPrice).toFixed(2);
-        target.supplier = this.editingMedicine.supplier || 'N/A';
-        target.batch = this.editingMedicine.batch || 'N/A';
-        target.expiryDate = this.editingMedicine.expiryDate || 'N/A';
+
+        await window.db.updateInventoryItem(this.editingId, updatedData);
+
+        const targetIndex = this.medicines.findIndex(m => m.id === this.editingId);
+        if (targetIndex !== -1) {
+          this.medicines[targetIndex] = { ...this.medicines[targetIndex], ...updatedData };
+        }
+
         this.editModalOpen = false;
-        this.editingIndex = null;
+        this.editingId = null;
       },
       confirmDelete(medicine) {
         this.itemToDelete = medicine;
         this.deleteConfirmOpen = true;
       },
-      finalDelete() {
+      async finalDelete() {
         if (this.itemToDelete) {
-          this.medicines = this.medicines.filter(m => m !== this.itemToDelete);
+          await window.db.deleteInventoryItem(this.itemToDelete.id);
+          this.medicines = this.medicines.filter(m => m.id !== this.itemToDelete.id);
           this.itemToDelete = null;
         }
         this.deleteConfirmOpen = false;
@@ -211,304 +263,6 @@
 
     <div class="bg-mesh"></div>
 
-    <!-- Sidebar (omitted for brevity in replace call but remains same) -->
-    <!-- ... -->
-
-    <!-- Modal Overlay -->
-    <div x-show="editModalOpen" x-cloak x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-      x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-      class="fixed inset-0 z-60 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
-      <!-- Modal Content -->
-      <div @click.away="editModalOpen = false" x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-        class="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-bento">
-        <div class="px-10 py-8 border-b border-slate-100 flex items-center justify-between bg-white">
-          <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Edit Medicine</h2>
-          <button @click="editModalOpen = false"
-            class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 transition-colors">
-            <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
-          </button>
-        </div>
-
-        <div class="p-10 space-y-6 max-h-[70vh] overflow-y-auto hide-scrollbar">
-          <div class="grid grid-cols-2 gap-6">
-            <!-- Name -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Medicine Name
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="editingMedicine.name"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Category -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Category <span
-                  class="text-rose-500">*</span></label>
-              <select x-model="editingMedicine.category"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700 appearance-none">
-                <template x-for="category in categories">
-                  <option :value="category" x-text="category"></option>
-                </template>
-              </select>
-            </div>
-            <!-- Batch -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Batch Number <span
-                  class="text-slate-300">(optional)</span></label>
-              <input type="text" x-model="editingMedicine.batch" placeholder="Enter batch number"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Stock -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Stock Quantity
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="editingMedicine.stock"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Expiry -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Expiration Date
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="editingMedicine.expiryDate"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Price -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Selling Price (₱)
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="editingMedicine.sellingPrice"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Cost Price -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Cost Price (₱)
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="editingMedicine.costPrice"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Supplier -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Supplier
-                <span class="text-slate-300">(optional)</span></label>
-              <input type="text" x-model="editingMedicine.supplier"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-semibold text-slate-700">
-            </div>
-          </div>
-
-          <!-- Product Image Section -->
-          <div class="space-y-3" x-data="{ editPhotoPreview: null }">
-            <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Product Image <span
-                class="text-slate-300">(optional)</span></label>
-
-            <input type="file" class="hidden" x-ref="editPhoto" @change="
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            editPhotoPreview = e.target.result;
-                        };
-                        reader.readAsDataURL($refs.editPhoto.files[0]);
-                   ">
-
-            <div class="flex items-center gap-6">
-              <!-- Upload Placeholder -->
-              <div @click="$refs.editPhoto.click()"
-                class="flex-1 h-32 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 hover:border-teal-500 hover:bg-teal-50/30 transition-all cursor-pointer group relative overflow-hidden">
-                <div class="flex flex-col items-center justify-center transition-all group-hover:scale-105"
-                  x-show="!editPhotoPreview">
-                  <i data-lucide="upload-cloud"
-                    class="w-8 h-8 text-slate-300 group-hover:text-teal-500 transition-colors"></i>
-                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Change Product Photo
-                  </p>
-                </div>
-
-                <!-- Preview Image -->
-                <template x-if="editPhotoPreview">
-                  <img :src="editPhotoPreview" class="absolute inset-0 w-full h-full object-cover">
-                </template>
-
-                <!-- Overlay on hover when has preview -->
-                <div x-show="editPhotoPreview"
-                  class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <span class="text-[10px] font-black text-white uppercase tracking-widest">Select New Photo</span>
-                </div>
-              </div>
-
-              <!-- Icon Preview (Fallback) -->
-              <div
-                class="w-32 h-32 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-center overflow-hidden">
-                <template x-if="!editPhotoPreview">
-                  <div
-                    :class="`w-14 h-14 ${editingMedicine.color} rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm`"
-                    x-text="editingMedicine.name ? editingMedicine.name.charAt(0) : '?'"></div>
-                </template>
-                <template x-if="editPhotoPreview">
-                  <div class="w-full h-full p-2">
-                    <img :src="editPhotoPreview" class="w-full h-full object-cover rounded-2xl shadow-sm">
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="px-10 py-8 bg-slate-50/50 border-t border-slate-100 flex justify-end gap-3">
-          <button @click="editModalOpen = false"
-            class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Cancel</button>
-          <button @click="saveEdit()"
-            class="px-10 py-3 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all">Save
-            Changes</button>
-        </div>
-      </div>
-    </div>
-    <!-- Add Medicine Modal Overlay -->
-    <div x-show="addModalOpen" x-cloak x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-      x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-      class="fixed inset-0 z-60 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
-      <!-- Modal Content -->
-      <div @click.away="addModalOpen = false" x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-        class="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-bento">
-        <div class="px-10 py-8 border-b border-slate-100 flex items-center justify-between bg-white">
-          <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Add New Medicine</h2>
-          <button @click="addModalOpen = false"
-            class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 transition-colors">
-            <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
-          </button>
-        </div>
-
-        <div class="p-10 space-y-6 max-h-[70vh] overflow-y-auto hide-scrollbar">
-          <div class="grid grid-cols-2 gap-6">
-            <!-- Name -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Medicine Name
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="newMedicine.name" placeholder="Paracetamol, etc."
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Category -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Category <span
-                  class="text-rose-500">*</span></label>
-              <select x-model="newMedicine.category"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700 appearance-none">
-                <template x-for="category in categories">
-                  <option :value="category" x-text="category"></option>
-                </template>
-              </select>
-            </div>
-            <!-- Batch -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Batch Number <span
-                  class="text-slate-300">(optional)</span></label>
-              <input type="text" x-model="newMedicine.batch" placeholder="B-2025-001"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Stock -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Stock Quantity
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="newMedicine.stock" placeholder="e.g. 50 units"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Expiry -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Expiration Date
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="newMedicine.expiryDate" placeholder="MM/DD/YYYY"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Selling Price -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Selling Price (₱)
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="newMedicine.sellingPrice"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Cost Price -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Cost Price (₱)
-                <span class="text-rose-500">*</span></label>
-              <input type="text" x-model="newMedicine.costPrice"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
-            </div>
-            <!-- Supplier -->
-            <div class="space-y-2">
-              <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Supplier
-                <span class="text-slate-300">(optional)</span></label>
-              <input type="text" x-model="newMedicine.supplier"
-                class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-semibold text-slate-700">
-            </div>
-          </div>
-
-          <!-- Product Image Section -->
-          <div class="space-y-3" x-data="{ photoName: null, photoPreview: null }">
-            <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-1">Product Image <span
-                class="text-slate-300">(optional)</span></label>
-
-            <input type="file" class="hidden" x-ref="photo" @change="
-                        photoName = $refs.photo.files[0].name;
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            photoPreview = e.target.result;
-                        };
-                        reader.readAsDataURL($refs.photo.files[0]);
-                   ">
-
-            <div class="flex items-center gap-6">
-              <!-- Upload Placeholder -->
-              <div @click="$refs.photo.click()"
-                class="flex-1 h-32 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-2 hover:border-teal-500 hover:bg-teal-50/30 transition-all cursor-pointer group relative overflow-hidden">
-                <div class="flex flex-col items-center justify-center transition-all group-hover:scale-105"
-                  x-show="!photoPreview">
-                  <i data-lucide="upload-cloud"
-                    class="w-8 h-8 text-slate-300 group-hover:text-teal-500 transition-colors"></i>
-                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Select Product Photo
-                  </p>
-                </div>
-
-                <!-- Preview Image -->
-                <template x-if="photoPreview">
-                  <img :src="photoPreview" class="absolute inset-0 w-full h-full object-cover">
-                </template>
-
-                <!-- Overlay on hover when has preview -->
-                <div x-show="photoPreview"
-                  class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <span class="text-[10px] font-black text-white uppercase tracking-widest">Change Photo</span>
-                </div>
-              </div>
-
-              <!-- Icon Preview (Fallback) -->
-              <div
-                class="w-32 h-32 bg-slate-50 rounded-3xl border border-slate-100 flex items-center justify-center overflow-hidden">
-                <template x-if="!photoPreview">
-                  <div
-                    :class="`w-14 h-14 ${newMedicine.color} rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm`"
-                    x-text="newMedicine.name ? newMedicine.name.charAt(0) : '?'"></div>
-                </template>
-                <template x-if="photoPreview">
-                  <div class="w-full h-full p-2">
-                    <img :src="photoPreview" class="w-full h-full object-cover rounded-2xl shadow-sm">
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="px-10 py-8 bg-slate-50/50 border-t border-slate-100 flex justify-end gap-3">
-          <button @click="addModalOpen = false"
-            class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Cancel</button>
-          <button @click="addMedicine()"
-            class="px-10 py-3 bg-teal-600 text-white font-bold rounded-2xl shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all">Add
-            Medicine</button>
-        </div>
-      </div>
-    </div>
     <!-- Sidebar -->
     <aside class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
@@ -622,22 +376,56 @@
 
         <!-- Search & Filter Area -->
         <div
-          class="bg-white/50 backdrop-blur-xl border border-white/40 p-2 rounded-4xl flex flex-col md:flex-row gap-4 items-center animate-bento">
+          class="bg-white/50 backdrop-blur-xl border border-white/40 p-2 rounded-4xl flex flex-col md:flex-row gap-4 items-center animate-bento relative z-50">
           <div class="relative flex-1 w-full p-2">
             <i data-lucide="search" class="absolute left-10 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
             <input type="text" x-model="searchTerm" placeholder="Search medicines..."
               class="w-full pl-16 pr-8 py-5 bg-white border border-slate-100 rounded-4xl focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all text-sm shadow-sm font-medium">
           </div>
-          <div class="p-2 w-full md:w-auto flex gap-2">
-            <button
-              class="h-16 px-8 flex items-center gap-4 bg-white border border-slate-100 rounded-4xl hover:bg-slate-50 transition-all shadow-sm group">
+          <div class="p-2 w-full md:w-auto flex gap-2 relative" x-data="{ dropdownOpen: false }">
+            <button 
+              @click="dropdownOpen = !dropdownOpen"
+              @click.away="dropdownOpen = false"
+              class="h-16 px-8 flex items-center gap-4 bg-white border border-slate-100 rounded-4xl hover:bg-slate-50 transition-all shadow-sm group cursor-pointer"
+            >
               <i data-lucide="filter" class="w-5 h-5 text-slate-400 group-hover:text-indigo-600 transition-colors"></i>
-              <span class="text-sm font-bold text-slate-600">All Categories</span>
-              <i data-lucide="chevron-down" class="w-4 h-4 text-slate-300"></i>
+              <span class="text-sm font-bold text-slate-600" x-text="selectedCategory === 'All' ? 'All Categories' : selectedCategory"></span>
+              <i data-lucide="chevron-down" class="w-4 h-4 text-slate-300 transition-transform" :class="dropdownOpen ? 'rotate-180' : ''"></i>
             </button>
-            <button @click="categoryModalOpen = true"
+
+            <!-- Category Dropdown -->
+            <div 
+              x-show="dropdownOpen"
+              x-cloak
+              x-transition:enter="transition ease-out duration-200"
+              x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+              x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+              class="absolute top-full mt-2 left-2 right-2 md:left-auto md:w-64 bg-white border border-slate-100 rounded-3xl shadow-2xl z-50 py-3 overflow-hidden"
+            >
+              <div class="max-h-64 overflow-y-auto hide-scrollbar">
+                <button 
+                  @click="selectedCategory = 'All'; dropdownOpen = false"
+                  class="w-full px-6 py-3 text-left text-sm font-bold transition-colors hover:bg-slate-50"
+                  :class="selectedCategory === 'All' ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-600'"
+                >
+                  All Categories
+                </button>
+                <template x-for="cat in categories">
+                  <button 
+                    @click="selectedCategory = cat; dropdownOpen = false"
+                    class="w-full px-6 py-3 text-left text-sm font-bold transition-colors hover:bg-slate-50"
+                    :class="selectedCategory === cat ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-600'"
+                    x-text="cat"
+                  ></button>
+                </template>
+              </div>
+            </div>
+
+            <button 
+              @click="categoryModalOpen = true"
               class="h-16 px-6 flex items-center justify-center bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-4xl hover:bg-indigo-100 transition-all shadow-sm group cursor-pointer"
-              title="Manage Categories">
+              title="Manage Categories"
+            >
               <i data-lucide="settings" class="w-5 h-5"></i>
             </button>
           </div>
@@ -658,6 +446,9 @@
                         <tr class="bg-slate-50/50">
                           <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
                             Medicine</th>
+                          <th
+                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
+                            Type</th>
                           <th
                             class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
                             Batch / Supplier</th>
@@ -689,9 +480,14 @@
                                 <div class="flex flex-col">
                                   <span class="text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
                                   <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"
-                                    x-text="`${medicine.category} • ${medicine.type}`"></span>
+                                    x-text="medicine.category"></span>
                                 </div>
                               </div>
+                            </td>
+                            <td class="px-8 py-6 text-center">
+                              <span :class="medicine.type === 'Branded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-teal-50 text-teal-600 border-teal-100/50'"
+                                class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-full border inline-block"
+                                x-text="medicine.type"></span>
                             </td>
                             <td class="px-8 py-6 text-center">
                               <div class="flex flex-col">
@@ -721,7 +517,7 @@
                             </td>
                             <td class="px-8 py-6">
                               <div class="flex items-center justify-end gap-2">
-                                <button @click="openEditModal(medicine, medicines.indexOf(medicine))"
+                                <button @click="openEditModal(medicine)"
                                   class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm cursor-pointer relative z-10">
                                   <i data-lucide="edit-3" class="w-4 h-4 pointer-events-none"></i>
                                 </button>
@@ -737,8 +533,7 @@
                     </table>
                   </div>
                   <div class="p-8 bg-slate-50/30 border-t border-slate-100/50 flex items-center justify-between">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"
-                      x-text="`Showing ${filteredMedicinesOnly.length} medicines`"></p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"></p>
                   </div>
                 </div>
               </div>
@@ -821,7 +616,7 @@
                             </td>
                             <td class="px-8 py-6">
                               <div class="flex items-center justify-end gap-2">
-                                <button @click="openEditModal(medicine, medicines.indexOf(medicine))"
+                                <button @click="openEditModal(medicine)"
                                   class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm cursor-pointer relative z-10">
                                   <i data-lucide="edit-3" class="w-4 h-4 pointer-events-none"></i>
                                 </button>
@@ -837,8 +632,7 @@
                     </table>
                   </div>
                   <div class="p-8 bg-slate-50/30 border-t border-slate-100/50 flex items-center justify-between">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"
-                      x-text="`Showing ${filteredGeneralItemsOnly.length} items`"></p>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"></p>
                   </div>
                 </div>
               </div>
