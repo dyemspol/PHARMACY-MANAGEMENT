@@ -33,149 +33,263 @@
       }
     </style>
   </head>
-  <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ 
-    sidebarOpen: window.innerWidth > 1024,
-    salesData: [],
-    inventoryData: [],
-    totalRevenue: 0,
-    totalTransactions: 0,
-    averageTransaction: 0,
-    netProfit: 0,
-    topSelling: [],
-    lowStockCount: 0,
-    lowStockItems: [],
-    isLoading: true,
-    
-    async init() {
-       const waitForDb = setInterval(async () => {
-        if (window.db && window.salesDb) {
-          clearInterval(waitForDb);
-          
-          // Fetch inventory
-          this.inventoryData = await window.db.fetchInventory();
-          this.calculateLowStock();
-          
-          // Fetch sales real-time
-          window.salesDb.fetchSalesData((sales) => {
-            this.salesData = sales;
+  <body class="antialiased text-slate-900 overflow-x-hidden" x-data="reportsData()">
+    <script>
+      document.addEventListener('alpine:init', () => {
+        Alpine.data('reportsData', () => ({
+          sidebarOpen: window.innerWidth > 1024,
+          allSalesData: [],
+          salesData: [],
+          inventoryData: [],
+          totalRevenue: 0,
+          totalTransactions: 0,
+          averageTransaction: 0,
+          netProfit: 0,
+          topSelling: [],
+          lowStockItems: [],
+          lowStockCount: 0,
+          isLoading: true,
+          get localToday() {
+            const n = new Date();
+            return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+          },
+          startDate: '',
+          endDate: '',
+          period: 'Daily',
+          dateDropdownOpen: false,
+
+          async init() {
+            this.startDate = this.localToday;
+            this.endDate = this.localToday;
+            
+            const waitForDb = setInterval(async () => {
+              if (window.db && window.salesDb) {
+                clearInterval(waitForDb);
+                this.inventoryData = await window.db.fetchInventory();
+                this.calculateLowStock();
+                window.salesDb.fetchSalesData((sales) => {
+                  this.allSalesData = sales;
+                  this.updateRange();
+                  this.isLoading = false;
+                  setTimeout(() => {
+                    if (window.lucide) {
+                      lucide.createIcons();
+                    }
+                  }, 100);
+                });
+              }
+            }, 100);
+          },
+          calculateLowStock() {
+            this.lowStockItems = this.inventoryData.filter(item => {
+              const stock = parseInt(String(item.stock).replace(' units', '')) || 0;
+              item.numericStock = stock;
+              return stock < 15;
+            });
+            this.lowStockCount = this.lowStockItems.length;
+          },
+
+          setPreset(type) {
+            const today = this.localToday;
+            
+            if (type === 'Today') {
+              this.startDate = today;
+              this.endDate = today;
+              this.period = 'Daily';
+            } else if (type === 'Yesterday') {
+              const n = new Date();
+              n.setDate(n.getDate() - 1);
+              this.startDate = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+              this.endDate = this.startDate;
+              this.period = 'Daily';
+            } else if (type === 'This Week') {
+              this.startDate = today;
+              this.period = 'Weekly';
+            } else if (type === 'This Month') {
+              this.startDate = today;
+              this.period = 'Monthly';
+            } else if (type === 'Past Month') {
+              const n = new Date();
+              n.setMonth(n.getMonth() - 1);
+              n.setDate(1);
+              this.startDate = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+              this.period = 'Monthly';
+            } else if (type === 'Past 3 Months') {
+              const startN = new Date();
+              startN.setMonth(startN.getMonth() - 3);
+              startN.setDate(1);
+              this.startDate = `${startN.getFullYear()}-${String(startN.getMonth() + 1).padStart(2, '0')}-${String(startN.getDate()).padStart(2, '0')}`;
+              
+              const endN = new Date();
+              this.endDate = `${endN.getFullYear()}-${String(endN.getMonth() + 1).padStart(2, '0')}-${String(endN.getDate()).padStart(2, '0')}`;
+              this.period = 'Custom Range';
+            }
+            this.updateRange();
+          },
+
+          updateRange() {
+            if (this.period === 'Custom Range') {
+              this.calculateMetrics();
+              this.calculateTopSelling();
+              return;
+            }
+            
+            // Critical Fix: Parse date manually to avoid timezone shifting
+            const [year, month, day] = this.startDate.split('-').map(Number);
+            let start = new Date(year, month - 1, day, 12, 0, 0); // Use mid-day to avoid timezone rolling
+            
+            if (this.period === 'Daily') {
+              this.endDate = this.startDate;
+            } else if (this.period === 'Weekly') {
+              // Standard PH week snap (Sunday to Saturday)
+              const dayOfWeek = start.getDay(); 
+              start.setDate(start.getDate() - dayOfWeek);
+              
+              const y = start.getFullYear();
+              const m = String(start.getMonth() + 1).padStart(2, '0');
+              const d = String(start.getDate()).padStart(2, '0');
+              this.startDate = `${y}-${m}-${d}`;
+              
+              const end = new Date(start);
+              end.setDate(start.getDate() + 6);
+              this.endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+            } else if (this.period === 'Monthly') {
+              // Snap to start/end of the reference month
+              const first = new Date(start.getFullYear(), start.getMonth(), 1, 12, 0, 0);
+              const last = new Date(start.getFullYear(), start.getMonth() + 1, 0, 12, 0, 0);
+              
+              this.startDate = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-${String(first.getDate()).padStart(2, '0')}`;
+              this.endDate = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
+            }
             this.calculateMetrics();
             this.calculateTopSelling();
-            this.isLoading = false;
-            setTimeout(() => {
-                if(window.lucide) {
-                    lucide.createIcons();
-                }
-            }, 50);
-          });
-        }
-      }, 100);
-    },
-    calculateLowStock() {
-       let allLowStock = this.inventoryData.filter(item => {
-           let stockNum = 0;
-           if(typeof item.stock === 'string') {
-               stockNum = parseInt(item.stock.replace(' units', '')) || 0;
-           } else {
-               stockNum = item.stock || 0;
-           }
-           item.numericStock = stockNum;
-           return stockNum < 15; // Defining low stock threshold as < 15
-       });
-       
-       // Sort by lowest stock first
-       allLowStock.sort((a,b) => a.numericStock - b.numericStock);
-       
-       this.lowStockCount = allLowStock.length;
-       this.lowStockItems = allLowStock.slice(0, 10);
-    },
-    
-    calculateMetrics() {
-        this.totalTransactions = this.salesData.length;
-        
-        this.totalRevenue = this.salesData.reduce((sum, sale) => {
-            let total = sale.total;
-            if(typeof total === 'string') {
-                total = parseFloat(total.replace('₱', '').replace(',','')) || 0;
-            }
-            return sum + total;
-        }, 0);
-        
-        this.averageTransaction = this.totalTransactions > 0 ? (this.totalRevenue / this.totalTransactions) : 0;
-        
-        // Simplified Net Profit Calculation: Assuming 30% margin for demo purposes if buyingPrice isn't reliably available in all legacy sales
-        // Alternatively, calculate exact if we map cart items to inventory buying price
-        let exactCost = 0;
-        this.salesData.forEach(sale => {
-            if(sale.cart) {
+          },
+
+          calculateMetrics() {
+            const [sYear, sMonth, sDay] = this.startDate.split('-').map(Number);
+            const [eYear, eMonth, eDay] = this.endDate.split('-').map(Number);
+            const start = new Date(sYear, sMonth - 1, sDay, 0, 0, 0);
+            const end = new Date(eYear, eMonth - 1, eDay, 23, 59, 59);
+            this.salesData = this.allSalesData.filter(sale => {
+              const saleDate = new Date(sale.date);
+              return saleDate >= start && saleDate <= end;
+            });
+            this.totalTransactions = this.salesData.length;
+            this.totalRevenue = this.salesData.reduce((sum, sale) => {
+              let total = sale.total;
+              if (typeof total === 'string') {
+                total = parseFloat(total.replace('₱', '').replace(',', '')) || 0;
+              }
+              return sum + total;
+            }, 0);
+            this.averageTransaction = this.totalTransactions > 0 ? (this.totalRevenue / this.totalTransactions) : 0;
+            let exactCost = 0;
+            this.salesData.forEach(sale => {
+              if (sale.cart) {
                 sale.cart.forEach(item => {
-                    let cost = parseFloat(item.buyingPrice) || 0;
-                    if(typeof item.buyingPrice === 'string' && item.buyingPrice.includes('₱')) {
-                        cost = parseFloat(item.buyingPrice.replace('₱', '').replace(',','')) || 0;
-                    }
-                    // if cost exists use it, else assume rough 70% cost
-                    exactCost += (cost > 0 ? (cost * item.quantity) : (item.numericPrice * item.quantity * 0.7)); 
+                  let cost = parseFloat(item.buyingPrice) || 0;
+                  if (typeof item.buyingPrice === 'string' && item.buyingPrice.includes('₱')) {
+                    cost = parseFloat(item.buyingPrice.replace('₱', '').replace(',', '')) || 0;
+                  }
+                  exactCost += (cost > 0 ? (cost * item.quantity) : (item.numericPrice * item.quantity * 0.7));
                 });
-            }
-        });
-        
-        this.netProfit = this.totalRevenue - exactCost;
-    },
-    
-    calculateTopSelling() {
-        const itemMap = {};
-        this.salesData.forEach(sale => {
-            if(sale.cart) {
+              }
+            });
+            this.netProfit = this.totalRevenue - exactCost;
+          },
+
+          calculateTopSelling() {
+            const itemMap = {};
+            this.salesData.forEach(sale => {
+              if (sale.cart) {
                 sale.cart.forEach(item => {
-                    if(!itemMap[item.name]) {
-                        itemMap[item.name] = { 
-                            name: item.name, 
-                            category: item.category || 'General', 
-                            units: 0, 
-                            revenue: 0 
-                        };
-                    }
-                    itemMap[item.name].units += item.quantity;
-                    itemMap[item.name].revenue += (item.numericPrice * item.quantity);
+                  if (!itemMap[item.name]) {
+                    itemMap[item.name] = {
+                      name: item.name,
+                      category: item.category || 'General',
+                      units: 0,
+                      revenue: 0
+                    };
+                  }
+                  itemMap[item.name].units += item.quantity;
+                  itemMap[item.name].revenue += (item.numericPrice * item.quantity);
                 });
+              }
+            });
+            this.topSelling = Object.values(itemMap)
+              .sort((a, b) => b.units - a.units)
+              .slice(0, 5);
+          },
+
+          exportSalesReport() {
+            if (this.salesData.length === 0) {
+              alert('No sales data in this date range.');
+              return;
             }
-        });
-        
-        this.topSelling = Object.values(itemMap)
-            .sort((a, b) => b.units - a.units)
-            .slice(0, 5); // top 5
-    }
-  }">
-    
-    <!-- Mobile Sidebar Backdrop -->
-    <div 
-      x-show="sidebarOpen" 
-      @click="sidebarOpen = false" 
-      x-cloak
-      class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
-      x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0"
-      x-transition:enter-end="opacity-100"
-      x-transition:leave="transition ease-in duration-200"
-      x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-    ></div>
+            let csv = '"Date","Transaction ID","Total Revenue","Net Profit"\n';
+            this.salesData.forEach(s => {
+              const revenue = typeof s.total === 'string' ? parseFloat(s.total.replace('₱', '').replace(',', '')) : s.total;
+              const profitValue = (revenue * 0.3);
+              csv += `"${s.date}","${s.transactionId || s.id}","${revenue.toFixed(2)}","${profitValue.toFixed(2)}"\n`;
+            });
+            this.downloadCSV(csv, `Sales_Report_${this.startDate}_to_${this.endDate}.csv`);
+          },
+
+          exportLowStockReport() {
+            let csv = '"Product Name","Category","Current Stock"\n';
+            this.inventoryData.filter(i => i.numericStock < 15).forEach(i => {
+              csv += `"${i.name}","${i.category}","${i.numericStock}"\n`;
+            });
+            this.downloadCSV(csv, 'Low_Stock_Report.csv');
+          },
+
+          exportFastMoving() {
+            let csv = '"Product Name","Category","Units Sold","Revenue Generated"\n';
+            this.topSelling.forEach(i => {
+              csv += `"${i.name}","${i.category}","${i.units}","${i.revenue.toFixed(2)}"\n`;
+            });
+            this.downloadCSV(csv, 'Fast_Moving_Report.csv');
+          },
+
+          exportSlowMoving() {
+            const slowItems = this.inventoryData.filter(i => i.numericStock > 50).slice(0, 10);
+            if (slowItems.length === 0) {
+              alert('No significant slow-moving items detected.');
+              return;
+            }
+            let csv = '"Product Name","Category","Current Stock","Recommendation"\n';
+            slowItems.forEach(i => {
+              csv += `"${i.name}","${i.category}","${i.numericStock}","Reduce restock frequency"\n`;
+            });
+            this.downloadCSV(csv, 'Slow_Moving_Inventory.csv');
+          },
+
+          downloadCSV(csvContent, fileName) {
+            const BOM = "\ufeff";
+            const blob = new Blob([BOM + csvContent], {
+              type: 'text/csv;charset=utf-8;'
+            });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', fileName);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          },
+        }));
+      });
+    </script>
+
     
     <div class="bg-reports-mesh"></div>
 
+    <!-- Sidebar -->
     <aside 
       class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
     >
-      <!-- Mobile Toggle Arrow (Overlapping Edge) -->
-      <button 
-        x-show="sidebarOpen"
-        x-cloak
-        @click="sidebarOpen = false" 
-        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-teal-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-teal-500/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all"
-      >
-        <i data-lucide="chevron-left" class="w-5 h-5"></i>
-      </button>
-
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
         <div class="p-8">
           <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
@@ -189,38 +303,15 @@
           </a>
         </div>
 
-        <!-- Navigation -->
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
           <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
-          
-          <a href="index.html" class="nav-link w-full">
-            <i data-lucide="layout-grid" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Dashboard</span>
-          </a>
-
-          <a href="inventory.html" class="nav-link w-full">
-            <i data-lucide="package" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Inventory</span>
-          </a>
-
-          <a href="POST_terminal.html" class="nav-link w-full">
-            <i data-lucide="shopping-bag" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">POS Terminal</span>
-          </a>
-
-          <a href="sales.html" class="nav-link w-full">
-            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Sales History</span>
-          </a>
-
-          <a href="reports.html" class="nav-link w-full active">
-            <i data-lucide="file-text" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Reports</span>
-          </a>
-
+          <a href="index.html" class="nav-link w-full"><i data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
+          <a href="inventory.html" class="nav-link w-full"><i data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
+          <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span class="font-semibold text-[15px]">POS Terminal</span></a>
+          <a href="sales.html" class="nav-link w-full"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Sales History</span></a>
+          <a href="reports.html" class="nav-link w-full active"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
         </nav>
 
-        <!-- Logout -->
         <div class="p-6 mt-auto">
           <button class="w-full flex items-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
             <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i>
@@ -230,240 +321,236 @@
       </div>
     </aside>
 
-    <!-- Content -->
     <main class="lg:ml-72 min-h-screen transition-all duration-500">
       
-      <!-- Header -->
       <header class="h-24 flex items-center justify-between px-10 sticky top-0 z-40">
           <div class="flex items-center gap-4 md:gap-6">
             <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
               <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6"></i>
             </button>
             <div>
-              <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Reports</h2>
-              <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap">Analyze your pharmacy performance</p>
+              <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Reports & Insights</h2>
+              <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap uppercase tracking-widest">Business Intelligence Dashboard</p>
             </div>
           </div>
-
       </header>
 
-      <!-- Reports Body -->
-      <div class="p-6 md:p-10 space-y-8">
+      <div class="p-6 md:p-10 space-y-12">
         
-        <!-- Export Quick Actions -->
-        <div class="space-y-4 animate-bento">
-          <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Export Quick Actions</label>
-          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <button class="flex items-center gap-3 p-4 bg-blue-600 text-white rounded-3xl shadow-lg shadow-blue-500/20 hover:scale-[1.03] transition-all group">
-              <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <i data-lucide="download" class="w-5 h-5 text-white"></i>
-              </div>
-              <span class="text-[11px] font-bold leading-tight uppercase tracking-tight text-left">Export<br>PDF</span>
-            </button>
-
-            <button class="flex items-center gap-3 p-4 bg-purple-600 text-white rounded-3xl shadow-lg shadow-purple-500/20 hover:scale-[1.03] transition-all group">
-              <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <i data-lucide="archive" class="w-5 h-5 text-white"></i>
-              </div>
-              <span class="text-[11px] font-bold leading-tight uppercase tracking-tight text-left">Export Stock<br>Report</span>
-            </button>
-
-            <button class="flex items-center gap-3 p-4 bg-emerald-600 text-white rounded-3xl shadow-lg shadow-emerald-500/20 hover:scale-[1.03] transition-all group">
-              <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <i data-lucide="file-spreadsheet" class="w-5 h-5 text-white"></i>
-              </div>
-              <span class="text-[11px] font-bold leading-tight uppercase tracking-tight text-left">Export Sales<br>Excel</span>
-            </button>
-
-            <button class="flex items-center gap-3 p-4 bg-amber-600 text-white rounded-3xl shadow-lg shadow-amber-500/20 hover:scale-[1.03] transition-all group">
-              <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <i data-lucide="boxes" class="w-5 h-5 text-white"></i>
-              </div>
-              <span class="text-[11px] font-bold leading-tight uppercase tracking-tight text-left">Export Stock<br>Excel</span>
-            </button>
-
-            <button class="flex items-center gap-3 p-4 bg-rose-600 text-white rounded-3xl shadow-lg shadow-rose-500/20 hover:scale-[1.03] transition-all group">
-              <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                <i data-lucide="clipboard-list" class="w-5 h-5 text-white"></i>
-              </div>
-              <span class="text-[11px] font-bold leading-tight uppercase tracking-tight text-left">Detailed Stock/Cash<br>Report</span>
-            </button>
-          </div>
-        </div>
-        
-        <!-- Filter Card -->
-        <div class="bg-white rounded-4xl border border-slate-100/50 p-8 shadow-sm flex items-end gap-10 animate-bento">
-          <div class="space-y-3 flex-1">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Period</label>
-            <div class="relative">
-              <select class="w-full pl-6 pr-12 py-5 bg-slate-50 border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm font-bold text-slate-700 appearance-none cursor-pointer">
-                <option>Daily Sales</option>
-                <option>Weekly Report</option>
-                <option>Monthly Analytics</option>
-              </select>
-              <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none"></i>
-            </div>
-          </div>
-
-          <div class="space-y-3 flex-1">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
-            <div class="relative">
-              <input type="date" value="2025-09-10" class="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm font-bold text-slate-700 cursor-pointer">
-            </div>
-          </div>
-          
-          <div class="grow shrink"></div>
-        </div>
-
-        <!-- Stats Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-bento delay-1">
-          <!-- Total Revenue -->
-          <div class="p-6 bg-emerald-50 rounded-4xl border border-emerald-100 flex items-center justify-between group hover:scale-[1.02] transition-transform">
-            <div>
-              <p class="text-[11px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Revenue</p>
-              <h3 class="text-2xl font-black text-emerald-900 tracking-tighter" x-text="'₱' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})"></h3>
-            </div>
-            <div class="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-all">
-              <i data-lucide="dollar-sign" class="w-6 h-6"></i>
-            </div>
-          </div>
-
-          <!-- Total Transactions -->
-          <div class="p-6 bg-blue-50 rounded-4xl border border-blue-100 flex items-center justify-between group hover:scale-[1.02] transition-transform">
-            <div>
-              <p class="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-1">Total Transactions</p>
-              <h3 class="text-2xl font-black text-blue-900 tracking-tighter" x-text="totalTransactions"></h3>
-            </div>
-            <div class="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all">
-              <i data-lucide="file-text" class="w-6 h-6"></i>
-            </div>
-          </div>
-
-          <!-- Average Transaction -->
-          <div class="p-6 bg-purple-50 rounded-4xl border border-purple-100 flex items-center justify-between group hover:scale-[1.02] transition-transform">
-            <div>
-              <p class="text-[11px] font-black text-purple-600 uppercase tracking-widest mb-1">Average Transaction</p>
-              <h3 class="text-2xl font-black text-purple-900 tracking-tighter" x-text="'₱' + averageTransaction.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})"></h3>
-            </div>
-            <div class="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-600 group-hover:bg-purple-500 group-hover:text-white transition-all">
-              <i data-lucide="trending-up" class="w-6 h-6"></i>
-            </div>
-          </div>
-
-          <!-- Net Profit -->
-          <div class="p-6 bg-amber-50 rounded-4xl border border-amber-100 flex items-center justify-between group hover:scale-[1.02] transition-transform">
-            <div>
-              <p class="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-1">Estimated Net Profit</p>
-              <h3 class="text-2xl font-black text-amber-900 tracking-tighter" x-text="'₱' + netProfit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})"></h3>
-            </div>
-            <div class="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-all">
-              <i data-lucide="banknote" class="w-6 h-6"></i>
-            </div>
-          </div>
-        </div>
-
-        <!-- Two Column Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-bento delay-2">
-          
-          <!-- Top Selling -->
-          <div class="bg-white rounded-4xl border border-slate-100/50 p-8 shadow-sm space-y-6">
-            <div class="flex items-center gap-3 px-2">
-              <i data-lucide="trending-up" class="w-5 h-5 text-blue-500"></i>
-              <h4 class="text-lg font-black text-slate-800 tracking-tight">Top Selling Medicines</h4>
-            </div>
+        <!-- Step 1: Unified Analysis Console -->
+        <div class="bg-white rounded-[3rem] border border-slate-100 p-2 shadow-sm animate-bento">
+          <div class="flex flex-col lg:flex-row items-center gap-2">
             
-            <div class="space-y-4">
-              <template x-if="isLoading">
-                 <div class="p-8 flex flex-col items-center justify-center space-y-3">
-                   <i data-lucide="loader-2" class="w-8 h-8 text-slate-300 animate-spin"></i>
-                   <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Scanning Sales</p>
-                 </div>
-              </template>
-              <template x-if="!isLoading && topSelling.length === 0">
-                 <p class="text-sm font-bold text-slate-400 p-4 text-center">No sales data to generate selling statistics.</p>
-              </template>
-              <template x-for="(medicine, index) in topSelling">
-                <div class="flex items-center justify-between p-5 bg-slate-50/50 rounded-3xl border border-slate-100 hover:border-teal-500/20 transition-all cursor-pointer group">
-                  <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold text-sm shadow-lg shadow-amber-500/20" x-text="index + 1"></div>
-                    <div>
-                      <h5 class="font-bold text-slate-800" x-text="medicine.name"></h5>
-                      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tight" x-text="medicine.category"></p>
-                    </div>
+            <!-- Group 1: Time Perspective Buttons -->
+            <div class="flex items-center gap-1 bg-slate-50 p-1.5 rounded-[2.5rem] w-full lg:w-fit shrink-0">
+               <button 
+                  @click="setPreset('Today')" 
+                  :class="period === 'Daily' ? 'bg-white shadow-lg text-teal-600 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" 
+                  class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all"
+               >Daily</button>
+               <button 
+                  @click="setPreset('This Week')" 
+                  :class="period === 'Weekly' ? 'bg-white shadow-lg text-teal-600 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" 
+                  class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all"
+               >Weekly</button>
+               <button 
+                  @click="setPreset('This Month')" 
+                  :class="period === 'Monthly' ? 'bg-white shadow-lg text-teal-600 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" 
+                  class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all"
+               >Monthly</button>
+               <button 
+                  @click="period = 'Custom Range'; updateRange()" 
+                  :class="period === 'Custom Range' ? 'bg-white shadow-lg text-teal-600 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" 
+                  class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all"
+               >Pick Range</button>
+            </div>
+
+            <!-- Group 2: Contextual Input Form -->
+            <div class="flex-1 flex items-center justify-between pl-6 pr-4 py-2 w-full lg:w-auto overflow-hidden">
+               
+               <!-- Standard View (D/W/M) -->
+               <div x-show="period !== 'Custom Range'" class="flex items-center gap-6 w-full animate-in fade-in slide-in-from-left-2 duration-300">
+                  <div class="flex flex-col">
+                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">REFERENCE DATE</span>
+                     <div class="flex items-center gap-2 group cursor-pointer">
+                        <input type="date" x-model="startDate" @change="updateRange()" class="bg-transparent border-none text-[13px] font-black text-slate-800 outline-none cursor-pointer focus:text-teal-600 transition-colors">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-300 group-hover:text-teal-600"></i>
+                     </div>
                   </div>
-                  <div class="text-right">
-                    <p class="text-xs font-bold text-slate-700" x-text="medicine.units + ' units'"></p>
-                    <p class="text-sm font-black text-emerald-600 tracking-tight" x-text="'₱' + medicine.revenue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+                  <div class="h-8 w-px bg-slate-100" x-show="period !== 'Daily'"></div>
+                  <div class="flex flex-col" x-show="period !== 'Daily'">
+                     <span class="text-[9px] font-black text-teal-600/60 uppercase tracking-widest mb-1 leading-none">AUTOMATED RANGE</span>
+                     <div class="flex items-center gap-2 opacity-80">
+                        <span class="text-[11px] font-bold text-slate-500" x-text="startDate"></span>
+                        <i data-lucide="arrow-right" class="w-3 h-3 text-slate-300"></i>
+                        <span class="text-[11px] font-bold text-slate-500" x-text="endDate"></span>
+                     </div>
+                  </div>
+               </div>
+
+               <!-- Custom View (Date Range Picker) -->
+               <div x-show="period === 'Custom Range'" class="flex items-center gap-6 w-full animate-in zoom-in-95 duration-300">
+                  <div class="flex flex-col">
+                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none rotate-picker">Start of Range</span>
+                     <input type="date" x-model="startDate" @change="calculateMetrics(); calculateTopSelling();" class="bg-transparent border-none text-[12px] font-black text-slate-800 outline-none cursor-pointer focus:text-teal-600 transition-colors">
+                  </div>
+                  <i data-lucide="arrow-right-left" class="w-4 h-4 text-slate-200"></i>
+                  <div class="flex flex-col text-right">
+                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">End of Range</span>
+                     <input type="date" x-model="endDate" @change="calculateMetrics(); calculateTopSelling();" class="bg-transparent border-none text-[12px] font-black text-slate-800 outline-none cursor-pointer focus:text-teal-600 transition-colors">
+                  </div>
+               </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Metrics Visualization -->
+        <div class="space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-bento">
+              <div class="p-6 bg-emerald-50 rounded-4xl border border-emerald-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-emerald-500/5">
+                <div>
+                  <p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Revenue</p>
+                  <h3 class="text-2xl font-black text-emerald-900" x-text="'₱' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                </div>
+                <div class="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-600">
+                  <i data-lucide="dollar-sign" class="w-6 h-6"></i>
+                </div>
+              </div>
+              <div class="p-6 bg-blue-50 rounded-4xl border border-blue-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-blue-500/5">
+                <div>
+                  <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Transactions</p>
+                  <h3 class="text-2xl font-black text-blue-900" x-text="totalTransactions"></h3>
+                </div>
+                <div class="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600">
+                  <i data-lucide="file-text" class="w-6 h-6"></i>
+                </div>
+              </div>
+              <div class="p-6 bg-purple-50 rounded-4xl border border-purple-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-purple-500/5">
+                <div>
+                  <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1">Average Order</p>
+                  <h3 class="text-2xl font-black text-purple-900" x-text="'₱' + averageTransaction.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                </div>
+                <div class="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-600">
+                  <i data-lucide="trending-up" class="w-6 h-6"></i>
+                </div>
+              </div>
+              <div class="p-6 bg-amber-50 rounded-4xl border border-amber-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-amber-500/5">
+                <div>
+                  <p class="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Net Profit (Est.)</p>
+                  <h3 class="text-2xl font-black text-amber-900" x-text="'₱' + netProfit.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                </div>
+                <div class="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-600">
+                  <i data-lucide="banknote" class="w-6 h-6"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-bento">
+              <!-- Top Selling -->
+              <div class="bg-white rounded-4xl border border-slate-100 p-8 shadow-sm space-y-6">
+                <div class="flex items-center gap-3">
+                  <i data-lucide="award" class="w-5 h-5 text-blue-500"></i>
+                  <h4 class="text-lg font-black text-slate-800 uppercase tracking-tight">Top Performance</h4>
+                </div>
+                <div class="space-y-4">
+                  <template x-if="isLoading"><div class="p-12 text-center text-slate-300 font-bold text-xs uppercase animate-pulse">Scanning History...</div></template>
+                  <template x-if="!isLoading && topSelling.length === 0"><div class="p-12 text-center text-slate-400 text-xs font-bold font-black">NO SALES RECORDED</div></template>
+                  <template x-for="(med, idx) in topSelling">
+                    <div class="flex items-center justify-between p-4 bg-slate-50/50 rounded-3xl border border-slate-100">
+                      <div class="flex items-center gap-4">
+                        <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-[10px]" x-text="idx+1"></div>
+                        <div>
+                          <h5 class="font-bold text-slate-800 text-sm" x-text="med.name"></h5>
+                          <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest" x-text="med.category"></p>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-xs font-black text-emerald-600" x-text="'₱' + (med.revenue || 0).toLocaleString()"></p>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase" x-text="med.units + ' sold'"></p>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Stock Alerts -->
+              <div class="bg-white rounded-4xl border border-slate-100 p-8 shadow-sm space-y-6">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>
+                    <h4 class="text-lg font-black text-slate-800 uppercase tracking-tight">Restock Needs</h4>
+                  </div>
+                  <span class="text-[10px] font-black text-rose-600 uppercase bg-rose-50 px-3 py-1 rounded-full border border-rose-100" x-show="lowStockCount > 0" x-text="lowStockCount + ' Items Low'"></span>
+                </div>
+                <div class="space-y-4">
+                  <template x-if="!isLoading && lowStockItems.length === 0"><div class="p-12 text-center text-emerald-500 text-xs font-bold uppercase tracking-widest">Stock health is excellent</div></template>
+                  <template x-for="item in lowStockItems">
+                    <div class="flex items-center justify-between p-4 bg-rose-50/30 rounded-3xl border border-rose-100">
+                      <div class="flex items-center gap-4">
+                        <div class="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm text-rose-500"><i data-lucide="package" class="w-4 h-4"></i></div>
+                        <div>
+                          <h5 class="font-bold text-slate-800 text-sm" x-text="item.name"></h5>
+                          <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest" x-text="item.category"></p>
+                        </div>
+                      </div>
+                      <span class="px-3 py-1 bg-white border border-rose-100 text-rose-600 rounded-full text-[10px] font-black" x-text="item.numericStock + ' Left'"></span>
+                    </div>
+                  </template>
+                   <div x-show="lowStockCount > 5" class="text-center pt-2">
+                     <a href="inventory.html" class="text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors">See all <span x-text="lowStockCount"></span> alerts &rarr;</a>
                   </div>
                 </div>
-              </template>
+              </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Actionable Exports -->
+        <div class="space-y-8 pb-12 animate-bento">
+          <div class="flex items-center justify-between px-4 pt-12 border-t border-slate-100/50">
+            <div>
+              <h4 class="text-xl font-black text-slate-800 tracking-tight leading-none uppercase">Export Records</h4>
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Download current filtered results for archival</p>
             </div>
           </div>
 
-          <!-- Stock Alerts -->
-          <div class="bg-white rounded-4xl border border-slate-100/50 p-8 shadow-sm space-y-6">
-            <div class="flex items-center justify-between px-2">
-              <div class="flex items-center gap-3">
-                <i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>
-                <h4 class="text-lg font-black text-slate-800 tracking-tight">Stock Alerts</h4>
-              </div>
-              <span class="px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-[10px] font-black uppercase tracking-tighter border border-rose-100/50" x-show="lowStockCount > 0" x-text="`${lowStockCount} Total Items`"></span>
-            </div>
-            
-            <div class="space-y-4">
-              <!-- Loading State -->
-              <template x-if="isLoading">
-                 <div class="p-6 rounded-3xl border border-slate-100 bg-slate-50 flex items-center gap-4 group transition-all opacity-80">
-                  <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-slate-500">
-                    <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
-                  </div>
-                  <div>
-                    <h5 class="font-bold tracking-tight text-slate-900">Scanning Inventory</h5>
-                    <p class="text-xs font-medium text-slate-600/70">Connecting to real-time stock counts...</p>
-                  </div>
-                </div>
-              </template>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <button @click="exportSalesReport()" class="flex flex-col gap-4 p-8 bg-white border border-slate-100 rounded-4xl hover:border-blue-600/30 hover:shadow-xl hover:shadow-blue-500/5 transition-all group cursor-pointer relative overflow-hidden text-left">
+               <div class="absolute right-0 top-0 w-24 h-24 bg-blue-500/5 rounded-full -mr-8 -mt-8 group-hover:bg-blue-500/10 transition-colors"></div>
+               <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                 <i data-lucide="file-bar-chart" class="w-7 h-7"></i>
+               </div>
+               <h5 class="text-sm font-black text-slate-800 group-hover:text-blue-600 transition-colors uppercase tracking-tight">Sales & Profit</h5>
+               <p class="text-[10px] font-bold text-slate-400">Full audit CSV</p>
+            </button>
 
-              <!-- When No Items Are Low on Stock -->
-              <template x-if="!isLoading && lowStockItems.length === 0">
-                 <div class="p-6 rounded-3xl border border-emerald-100 bg-emerald-50 flex items-center gap-4 group transition-all opacity-80">
-                  <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-emerald-500">
-                    <i data-lucide="check-circle" class="w-6 h-6"></i>
-                  </div>
-                  <div>
-                    <h5 class="font-bold tracking-tight text-emerald-900">Optimal Stock Health</h5>
-                    <p class="text-xs font-medium text-emerald-600/70">All inventory levels are above 15 units.</p>
-                  </div>
-                </div>
-              </template>
+            <button @click="exportLowStockReport()" class="flex flex-col gap-4 p-8 bg-white border border-slate-100 rounded-4xl hover:border-rose-600/30 hover:shadow-xl hover:shadow-rose-500/5 transition-all group cursor-pointer relative overflow-hidden text-left">
+               <div class="absolute right-0 top-0 w-24 h-24 bg-rose-500/5 rounded-full -mr-8 -mt-8 group-hover:bg-rose-500/10 transition-colors"></div>
+               <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-all shadow-sm">
+                 <i data-lucide="package-search" class="w-7 h-7"></i>
+               </div>
+               <h5 class="text-sm font-black text-slate-800 group-hover:text-rose-600 transition-colors uppercase tracking-tight">Buying List</h5>
+               <p class="text-[10px] font-bold text-slate-400">Low stock export</p>
+            </button>
 
-              <!-- Dynamic Render of Low Items (Top 10) -->
-              <template x-for="item in lowStockItems">
-                <div class="flex items-center justify-between p-4 bg-rose-50/30 rounded-3xl border border-rose-100 hover:border-rose-300 transition-all cursor-pointer group">
-                  <div class="flex items-center gap-4">
-                    <div class="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shadow-sm">
-                      <i data-lucide="package-minus" class="w-4 h-4"></i>
-                    </div>
-                    <div>
-                      <h5 class="font-bold text-slate-800" x-text="item.name"></h5>
-                      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tight" x-text="item.category"></p>
-                    </div>
-                  </div>
-                  <div class="text-right">
-                    <span class="px-3 py-1 bg-white text-rose-600 rounded-full text-xs font-black inline-block border border-rose-200 shadow-sm" x-text="item.numericStock + ' Left'"></span>
-                  </div>
-                </div>
-              </template>
-              
-              <!-- Redirection/Limit Notification -->
-              <div x-show="lowStockCount > 10" class="text-center pt-2">
-                 <a href="inventory.html" class="text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors">
-                    View <span x-text="(lowStockCount - 10)"></span> more items in Inventory &rarr;
-                 </a>
-              </div>
-            </div>
+            <button @click="exportFastMoving()" class="flex flex-col gap-4 p-8 bg-white border border-slate-100 rounded-4xl hover:border-teal-600/30 hover:shadow-xl hover:shadow-teal-500/5 transition-all group cursor-pointer relative overflow-hidden text-left">
+               <div class="absolute right-0 top-0 w-24 h-24 bg-teal-500/5 rounded-full -mr-8 -mt-8 group-hover:bg-teal-500/10 transition-colors"></div>
+               <div class="w-14 h-14 bg-teal-50 rounded-2xl flex items-center justify-center text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-sm">
+                 <i data-lucide="zap" class="w-7 h-7"></i>
+               </div>
+               <h5 class="text-sm font-black text-slate-800 group-hover:text-teal-600 transition-colors uppercase tracking-tight">Top Movers</h5>
+               <p class="text-[10px] font-bold text-slate-400">Popular items list</p>
+            </button>
+
+            <button @click="exportSlowMoving()" class="flex flex-col gap-4 p-8 bg-white border border-slate-100 rounded-4xl hover:border-amber-600/30 hover:shadow-xl hover:shadow-amber-500/5 transition-all group cursor-pointer relative overflow-hidden text-left">
+               <div class="absolute right-0 top-0 w-24 h-24 bg-amber-500/5 rounded-full -mr-8 -mt-8 group-hover:bg-amber-500/10 transition-colors"></div>
+               <div class="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-all shadow-sm">
+                 <i data-lucide="snail" class="w-7 h-7"></i>
+               </div>
+               <h5 class="text-sm font-black text-slate-800 group-hover:text-amber-600 transition-colors uppercase tracking-tight">Dead Stock</h5>
+               <p class="text-[10px] font-bold text-slate-400">Audit slow items</p>
+            </button>
           </div>
-
         </div>
 
       </div>
