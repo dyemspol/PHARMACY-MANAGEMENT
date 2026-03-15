@@ -49,6 +49,7 @@
       newCategoryName: '',
       editingCategoryIndex: null,
       editingCategoryName: '',
+      isLoading: true,
       
       async init() {
         console.log('Inventory Alpine init: Waiting for window.db...');
@@ -58,6 +59,7 @@
             clearInterval(waitForDb);
             console.log('Database ready! Fetching inventory...');
             this.medicines = await window.db.fetchInventory();
+            this.isLoading = false;
             console.log('Fetched medicines:', this.medicines);
             lucide.createIcons();
           }
@@ -469,6 +471,22 @@
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-slate-100/50">
+                        <template x-if="isLoading">
+                           <tr>
+                              <td colspan="8" class="px-8 py-10 text-center text-slate-400 font-bold">
+                                  <i data-lucide="loader-2" class="w-10 h-10 mx-auto mb-2 opacity-50 animate-spin"></i>
+                                  Loading medical inventory...
+                              </td>
+                          </tr>
+                        </template>
+                        <template x-if="!isLoading && filteredMedicinesOnly.length === 0">
+                           <tr>
+                              <td colspan="8" class="px-8 py-10 text-center text-slate-400 font-bold">
+                                  <i data-lucide="package-x" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
+                                  No medicines available yet.
+                              </td>
+                          </tr>
+                        </template>
                         <template x-for="medicine in filteredMedicinesOnly">
                           <tr class="hover:bg-slate-50/40 transition-colors group">
                             <td class="px-8 py-6">
@@ -573,6 +591,22 @@
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-slate-100/50">
+                        <template x-if="isLoading">
+                           <tr>
+                              <td colspan="7" class="px-8 py-10 text-center text-slate-400 font-bold">
+                                  <i data-lucide="loader-2" class="w-10 h-10 mx-auto mb-2 opacity-50 animate-spin"></i>
+                                  Loading general items...
+                              </td>
+                          </tr>
+                        </template>
+                        <template x-if="!isLoading && filteredGeneralItemsOnly.length === 0">
+                           <tr>
+                              <td colspan="7" class="px-8 py-10 text-center text-slate-400 font-bold">
+                                  <i data-lucide="package-x" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
+                                  No general items available yet.
+                              </td>
+                          </tr>
+                        </template>
                         <template x-for="medicine in filteredGeneralItemsOnly">
                           <tr class="hover:bg-slate-50/40 transition-colors group">
                             <td class="px-8 py-6">

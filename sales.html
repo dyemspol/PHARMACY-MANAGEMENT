@@ -18,6 +18,8 @@
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+
     
     <style>
       [x-cloak] { display: none !important; }
@@ -26,14 +28,101 @@
   <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ 
     sidebarOpen: window.innerWidth > 1024,
     saleDetailsModal: false,
+    salesData: [],
+    isLoading: true,
+    init() {
+        const waitForDb = setInterval(() => {
+            if (window.salesDb) {
+                clearInterval(waitForDb);
+                window.salesDb.fetchSalesData((sales) => {
+                    // map exactly how sales.html wants it
+                    this.salesData = sales.map(data => ({
+                        id: (data.transactionId || data.id).substring(0, 10).toUpperCase(),
+                        rawId: data.id,
+                        date: data.date,
+                        time: data.time,
+                        items: `${data.items} item(s)`,
+                        units: `${data.units} units`,
+                        total: data.total,
+                        cart: data.cart || []
+                    }));
+                    this.isLoading = false;
+                    setTimeout(() => lucide.createIcons(), 50);
+                });
+            }
+        }, 100);
+    },
+    exportCSV() {
+        if (!this.salesData || this.salesData.length === 0) {
+            alert('No sales data available to export.');
+            return;
+        }
+
+        // Define CSV headers
+        let csvContent = 'data:text/csv;charset=utf-8,';
+        csvContent += 'Transaction Number,Number of Items,Total Amount,Date\n';
+
+        // Map over state sales data
+        this.salesData.forEach((row) => {
+            // Clean up text properties to ensure no commas break the CSV structure
+            let itemsNum = row.items.replace(' item(s)', '');
+            let totalAmount = row.total.replace('₱', '').replace(/,/g, '');
+            
+            // Format Date to MM-DD-YYYY
+            let formattedDate = new Date(row.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+
+            let rawRow = `${row.id},${itemsNum},${totalAmount},${formattedDate}`;
+            csvContent += rawRow + '\n';
+        });
+
+        // Create a hidden link and trigger download natively
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `Sales_Report_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link); // Required for FF
+        link.click();
+        document.body.removeChild(link);
+    },
     selectedSale: {
-      id: '#TRX-F36D1D',
-      date: 'Sep 10, 2025',
-      total: '₱2,000.00',
-      itemsCount: 1,
-      items: [
-        { name: 'Paracetamol', category: 'Pain Relief', price: '₱1,000.00', qty: 1, subtotal: '₱1,000.00' }
-      ]
+      id: '',
+      date: '',
+      total: '',
+      itemsCount: 0,
+      items: []
+    },
+    searchQuery: '',
+    get filteredSales() {
+        if (this.searchQuery.trim() === '') return this.salesData;
+        const query = this.searchQuery.toLowerCase();
+        return this.salesData.filter(sale => 
+            sale.id.toLowerCase().includes(query) || 
+            (sale.cart && sale.cart.some(item => item.name.toLowerCase().includes(query))) ||
+            (sale.cart && sale.cart.some(item => item.category && item.category.toLowerCase().includes(query)))
+        );
+    },
+    currentPage: 1,
+    itemsPerPage: 5,
+    get totalPages() {
+        return Math.ceil(this.filteredSales.length / this.itemsPerPage) || 1;
+    },
+    get paginatedSales() {
+        // Automatically reset to 1 if search makes current page go out of bounds
+        if (this.currentPage > this.totalPages) {
+            this.currentPage = Math.max(1, this.totalPages);
+        }
+        const start = (this.currentPage - 1) * this.itemsPerPage;
+        const end = start + this.itemsPerPage;
+        return this.filteredSales.slice(start, end);
+    },
+    nextPage() {
+        if (this.currentPage < this.totalPages) this.currentPage++;
+    },
+    prevPage() {
+        if (this.currentPage > 1) this.currentPage--;
+    },
+    goToPage(page) {
+        this.currentPage = page;
     }
   }">
     
@@ -113,8 +202,8 @@
                 </div>
 
                 <div class="text-right">
-                  <p class="text-xs font-bold text-slate-500" x-text="`${item.qty} x ${item.price}`"></p>
-                  <p class="text-sm font-black text-teal-600 mt-0.5 tracking-tight" x-text="item.subtotal"></p>
+                  <p class="text-xs font-bold text-slate-500" x-text="`${item.quantity} x ₱${item.price.toFixed(2)}`"></p>
+                  <p class="text-sm font-black text-teal-600 mt-0.5 tracking-tight" x-text="`₱${(item.quantity * item.price).toFixed(2)}`"></p>
                 </div>
               </div>
             </template>
@@ -250,7 +339,7 @@
         </div>
 
         <div class="flex items-center gap-4">
-          <button class="px-6 py-3 bg-teal-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all">
+          <button @click="exportCSV()" class="px-6 py-3 bg-teal-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all cursor-pointer relative z-10">
             <i data-lucide="download-cloud" class="w-4 h-4"></i>
             <span>Export CSV</span>
           </button>
@@ -264,7 +353,7 @@
         <div class="bg-white/50 backdrop-blur-xl border border-white/40 p-6 rounded-4xl flex flex-col md:flex-row gap-4 items-center animate-bento">
           <div class="relative flex-1 w-full">
             <i data-lucide="search" class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
-            <input type="text" placeholder="Filter by Sale ID, Medicine, or Department..." class="w-full pl-14 pr-6 py-5 bg-white border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm font-medium">
+            <input type="text" x-model="searchQuery" placeholder="Filter by Sale ID, Medicine, or Department..." class="w-full pl-14 pr-6 py-5 bg-white border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm font-medium">
           </div>
           <div class="w-full md:w-64">
             <input type="date" class="w-full px-6 py-5 bg-white border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm font-medium cursor-pointer">
@@ -288,13 +377,23 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100/50">
-                <template x-for="sale in [
-                  { id: '#TRX-F36D1D', date: 'Sep 10, 2025', time: '09:18 AM', items: '1 item(s)', units: '4 units', total: '₱2,000.00' },
-                  { id: '#TRX-B65B87', date: 'Sep 10, 2025', time: '08:56 AM', items: '3 item(s)', units: '12 units', total: '₱4,800.00' },
-                  { id: '#TRX-E9609C', date: 'Sep 09, 2025', time: '06:52 PM', items: '2 item(s)', units: '2 units', total: '₱12,020.00' },
-                  { id: '#TRX-A0A25C', date: 'Sep 09, 2025', time: '04:59 PM', items: '1 item(s)', units: '1 units', total: '₱950.00' },
-                  { id: '#TRX-28141D', date: 'Sep 08, 2025', time: '11:42 AM', items: '8 item(s)', units: '24 units', total: '₱24,000.00' }
-                ]">
+                <template x-if="isLoading">
+                    <tr>
+                        <td colspan="5" class="px-8 py-10 text-center text-slate-400 font-bold">
+                            <i data-lucide="loader-2" class="w-10 h-10 mx-auto mb-2 opacity-50 animate-spin"></i>
+                            Loading sales history...
+                        </td>
+                    </tr>
+                </template>
+                <template x-if="!isLoading && salesData.length === 0">
+                    <tr>
+                        <td colspan="5" class="px-8 py-10 text-center text-slate-400 font-bold">
+                            <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
+                            No sales history available yet.
+                        </td>
+                    </tr>
+                </template>
+                <template x-for="sale in paginatedSales" :key="sale.rawId">
                   <tr class="hover:bg-slate-50/30 transition-colors group">
                     <td class="px-8 py-6">
                       <span class="text-sm font-extrabold text-slate-800" x-text="sale.id"></span>
@@ -316,19 +415,10 @@
                     <td class="px-8 py-6">
                       <div class="flex items-center gap-3">
                         <button 
-                          @click="selectedSale = { id: sale.id, date: sale.date + ' ' + sale.time, total: sale.total, itemsCount: parseInt(sale.items), items: [{ name: 'Paracetamol', category: 'Pain Relief', price: '₱1,000.00', qty: parseInt(sale.items), subtotal: sale.total }] }; saleDetailsModal = true"
-                          class="w-10 h-10 flex items-center justify-center bg-teal-50 text-teal-600 rounded-xl hover:bg-teal-600 hover:text-white transition-all shadow-sm"
+                          @click="selectedSale = { id: sale.id, date: sale.date + ' ' + sale.time, total: sale.total, itemsCount: parseInt(sale.items), items: sale.cart }; saleDetailsModal = true"
+                          class="w-10 h-10 flex items-center justify-center bg-teal-50 text-teal-600 rounded-xl hover:bg-teal-600 hover:text-white transition-all shadow-sm cursor-pointer"
                         >
-                          <i data-lucide="file-text" class="w-4 h-4"></i>
-                        </button>
-                        <button 
-                          @click="selectedSale = { id: sale.id, date: sale.date + ' ' + sale.time, total: sale.total, itemsCount: parseInt(sale.items), items: [{ name: 'Paracetamol', category: 'Pain Relief', price: '₱1,000.00', qty: parseInt(sale.items), subtotal: sale.total }] }; saleDetailsModal = true"
-                          class="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                        >
-                          <i data-lucide="external-link" class="w-4 h-4"></i>
-                        </button>
-                        <button class="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm">
-                          <i data-lucide="printer" class="w-4 h-4"></i>
+                          <i data-lucide="eye" class="w-4 h-4 pointer-events-none"></i>
                         </button>
                       </div>
                     </td>
@@ -338,28 +428,50 @@
             </table>
           </div>
           
-          <!-- Pagination Demo -->
-          <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Showing 5 of 1,248 entries</p>
+          <!-- Pagination -->
+          <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between" x-show="filteredSales.length > 0">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" 
+               x-text="`Showing ${(currentPage - 1) * itemsPerPage + 1} to ${Math.min(currentPage * itemsPerPage, filteredSales.length)} of ${filteredSales.length} entries`">
+            </p>
             <div class="flex gap-2">
-              <button class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-teal-600 transition-colors shadow-sm">
+              <button 
+                @click="prevPage" 
+                :disabled="currentPage === 1" 
+                :class="currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:border-teal-300 hover:text-teal-600 cursor-pointer'" 
+                class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 transition-colors shadow-sm"
+              >
                 <i data-lucide="chevron-left" class="w-4 h-4"></i>
               </button>
-              <button class="w-10 h-10 flex items-center justify-center bg-teal-600 text-white rounded-xl shadow-lg shadow-teal-500/20 font-bold text-xs ring-4 ring-teal-500/10">1</button>
-              <button class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-600 hover:text-teal-600 transition-colors shadow-sm font-bold text-xs">2</button>
-              <button class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-teal-600 transition-colors shadow-sm">
+              
+              <template x-for="i in totalPages" :key="i">
+                <button 
+                  @click="goToPage(i)" 
+                  class="w-10 h-10 flex items-center justify-center rounded-xl font-bold text-xs shadow-sm cursor-pointer transition-colors"
+                  :class="currentPage === i ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20 ring-4 ring-teal-500/10' : 'bg-white border border-slate-100 text-slate-600 hover:text-teal-600 hover:border-teal-300'"
+                  x-text="i"
+                ></button>
+              </template>
+
+              <button 
+                @click="nextPage" 
+                :disabled="currentPage === totalPages" 
+                :class="currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:border-teal-300 hover:text-teal-600 cursor-pointer'" 
+                class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 transition-colors shadow-sm"
+              >
                 <i data-lucide="chevron-right" class="w-4 h-4"></i>
               </button>
             </div>
           </div>
         </div>
-
       </div>
     </main>
 
     <script type="module" src="/src/main.js"></script>
     <script>
       lucide.createIcons();
+      document.addEventListener('alpine:initialized', () => {
+        lucide.createIcons();
+      });
     </script>
   </body>
 </html>

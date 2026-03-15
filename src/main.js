@@ -1,8 +1,10 @@
 import './style.css'
 import './firebase.js'
 import * as db from './db.js'
+import * as salesDb from './services/sales.js'
 
 window.db = db;
+window.salesDb = salesDb;
 
 // Initialize icons on load
 document.addEventListener('DOMContentLoaded', () => {
