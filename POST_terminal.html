@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>POS Terminal | DavaoDeOro</title>
     <link href="/src/style.css" rel="stylesheet" />
     
@@ -23,17 +23,30 @@
       [x-cloak] { display: none !important; }
       .hide-scrollbar::-webkit-scrollbar { display: none; }
       .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      /* Mobile optimization */
+      @media (max-width: 1024px) {
+        .cart-sidebar {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 85vh;
+          z-index: 50;
+          transform: translateY(100%);
+          transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .cart-sidebar.open {
+          transform: translateY(0);
+        }
+      }
     </style>
   </head>
-  <body class="antialiased text-slate-900 overflow-x-hidden bg-[#F8FAFC]" x-data="{ 
-    sidebarOpen: window.innerWidth > 1024,
+  <body class="antialiased text-slate-900 bg-[#F8FAFC]" x-data="{ 
+    sidebarOpen: false,
+    cartOpen: false,
     showSuccess: false,
     lastTransactionId: '',
-    lastTransactionDate: '',
-    lastTransactionItems: [],
-    lastTransactionTotal: 0,
-    lastTransactionCash: 0,
-    lastTransactionChange: 0,
     paymentModalOpen: false,
     cashAmount: '',
     changeAmount: 0,
@@ -43,42 +56,31 @@
     medicines: [],
     
     async init() {
-      console.log('POS Alpine init: Waiting for window.db...');
       const waitForDb = setInterval(async () => {
         if (window.db) {
           clearInterval(waitForDb);
-          console.log('POS Database ready! Fetching inventory...');
           this.medicines = await window.db.fetchInventory();
-          console.log('POS fetched medicines:', this.medicines);
           lucide.createIcons();
         }
       }, 100);
     },
 
     addToCart(medicine) {
-      console.log('Adding to cart:', medicine.name);
       const stockNum = parseInt(String(medicine.stock).replace(' units', '')) || 0;
-      console.log('Parsed stock:', stockNum);
       const existing = this.cart.find(item => item.id === medicine.id);
       if (existing) {
         if (existing.quantity < stockNum) {
           existing.quantity++;
-          console.log('Increased quantity to:', existing.quantity);
-        } else {
-          console.warn('Cannot add more: Stock limit reached');
         }
-      } else {
-        if (stockNum > 0) {
-          this.cart.push({ ...medicine, quantity: 1 });
-          console.log('Added new item to cart');
-        } else {
-          console.warn('Cannot add: Out of stock');
-        }
+      } else if (stockNum > 0) {
+        this.cart.push({ ...medicine, quantity: 1 });
       }
     },
+
     removeFromCart(id) {
       this.cart = this.cart.filter(item => item.id !== id);
     },
+
     getTotal() {
       return this.cart.reduce((sum, item) => {
         let priceValue = item.sellingPrice;
@@ -88,530 +90,311 @@
         return sum + (priceValue * item.quantity);
       }, 0);
     },
+
     openPaymentModal() {
       if (this.cart.length === 0) return;
       this.cashAmount = '';
       this.changeAmount = 0;
       this.paymentModalOpen = true;
     },
+
     calculateChange() {
       const total = this.getTotal();
       const cash = parseFloat(this.cashAmount) || 0;
       this.changeAmount = Math.max(0, cash - total);
       return this.changeAmount;
     },
+
     isValidPayment() {
       const total = this.getTotal();
       const cash = parseFloat(this.cashAmount) || 0;
       return cash >= total && total > 0;
     },
+
     async confirmPayment() {
       if (!this.isValidPayment()) return;
-
-      // Deduction logic
+      
       for (const item of this.cart) {
         const med = this.medicines.find(m => m.id === item.id);
         if (med) {
-          // Parse old stock, assuming string like '50 units'
           let currentStockNum = parseInt(String(med.stock).replace(' units', ''));
-          let newStockNum = currentStockNum - item.quantity;
-          if (newStockNum < 0) newStockNum = 0;
-          
+          let newStockNum = Math.max(0, currentStockNum - item.quantity);
           let newStockStr = newStockNum + ' units';
-          med.stock = newStockStr; // update locally
-
-          // update globally in firestore
+          med.stock = newStockStr;
           await window.db.updateInventoryItem(med.id, { stock: newStockStr });
         }
       }
       
       this.lastTransactionId = 'TRX-' + Math.random().toString(36).substr(2, 9).toUpperCase();
-      this.lastTransactionDate = new Date().toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      this.lastTransactionItems = [...this.cart].map(item => {
-         let priceValue = item.sellingPrice;
-         if(typeof priceValue === 'string') {
-            priceValue = parseFloat(priceValue.replace('₱', '')) || 0;
-         }
-         return { ...item, numericPrice: priceValue };
-      });
       this.lastTransactionTotal = this.getTotal();
-      this.lastTransactionCash = parseFloat(this.cashAmount);
-      this.lastTransactionChange = this.changeAmount;
       
-      // Save to Firebase via the organized salesDb
       const saleDataToSave = {
           date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
           items: String(this.cart.length),
-          units: String(this.cart.reduce((acc, current) => acc + current.quantity, 0)),
+          units: String(this.cart.reduce((acc, curr) => acc + curr.quantity, 0)),
           total: '₱' + this.getTotal().toFixed(2),
-          cart: JSON.parse(JSON.stringify(this.lastTransactionItems)),
-          createdAt: new Date(),
-          transactionId: this.lastTransactionId
+          transactionId: this.lastTransactionId,
+          createdAt: new Date()
       };
+      
       await window.salesDb.saveSaleData(saleDataToSave);
       
       this.paymentModalOpen = false;
       this.showSuccess = true;
       this.cart = [];
-      setTimeout(() => {
-        this.showSuccess = false;
-        lucide.createIcons();
-      }, 3000);
-      
-      // Auto-print immediately after payment confirmation
-      setTimeout(() => {
-        window.print();
-      }, 100);
+      this.cartOpen = false;
+      setTimeout(() => this.showSuccess = false, 3000);
     }
   }">
     
     <!-- Mobile Sidebar Backdrop -->
-    <div 
-      x-show="sidebarOpen" 
-      @click="sidebarOpen = false" 
-      x-cloak
-      class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
-      x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0"
-      x-transition:enter-end="opacity-100"
-      x-transition:leave="transition ease-in duration-200"
-      x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-    ></div>
+    <div x-show="sidebarOpen" @click="sidebarOpen = false" x-cloak class="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden transition-opacity"></div>
 
-    <!-- Success Toast -->
-    <div 
-      x-show="showSuccess"
-      x-cloak
-      x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0 translate-y-4"
-      x-transition:enter-end="opacity-100 translate-y-0"
-      x-transition:leave="transition ease-in duration-200"
-      x-transition:leave-start="opacity-100 translate-y-0"
-      x-transition:leave-end="opacity-0 translate-y-4"
-      class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-emerald-600 text-white px-8 py-4 rounded-3xl shadow-2xl shadow-emerald-500/40 flex items-center gap-4 border border-white/20"
-    >
-      <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-        <i data-lucide="check" class="w-6 h-6 text-white"></i>
-      </div>
-      <div>
-        <p class="font-bold">Payment Successful!</p>
-        <p class="text-[10px] font-medium opacity-80 uppercase tracking-widest" x-text="'ID: ' + lastTransactionId + ' | Change: ₱ ' + changeAmount.toFixed(2)"></p>
-      </div>
-    </div>
-
-    <!-- Payment Modal -->
-    <div 
-      x-show="paymentModalOpen" 
-      x-cloak
-      class="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6"
-    >
-      <div 
-        x-show="paymentModalOpen" 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        @click="paymentModalOpen = false"
-        class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-      ></div>
-
-      <div 
-        x-show="paymentModalOpen"
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-        x-transition:leave="transition ease-in duration-200"
-        x-transition:leave-start="opacity-100 scale-100 translate-y-0"
-        x-transition:leave-end="opacity-0 scale-95 translate-y-4"
-        class="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
-      >
-        <div class="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
-          <h2 class="text-xl font-extrabold text-slate-800 tracking-tight">Complete Payment</h2>
-          <button @click="paymentModalOpen = false" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 transition-colors">
-            <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
+    <!-- Main Sidebar (Desktop/Mobile) -->
+    <aside class="fixed inset-y-0 left-0 z-50 w-72 lg:w-20 xl:w-72 bg-white border-r border-slate-200 transition-transform duration-300 lg:translate-x-0" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+      <div class="h-full flex flex-col">
+        <div class="p-6 lg:p-4 xl:p-6 mb-4 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center">
+               <i data-lucide="cross" class="w-5 h-5 text-white"></i>
+            </div>
+            <span class="text-lg font-bold lg:hidden xl:block">Pharmacy</span>
+          </div>
+          <button @click="sidebarOpen = false" class="lg:hidden p-2 hover:bg-slate-100 rounded-lg">
+            <i data-lucide="x" class="w-5 h-5"></i>
           </button>
         </div>
 
-        <div class="p-8 space-y-6">
-          <div class="flex items-center justify-between p-6 bg-slate-50 rounded-3xl border border-slate-100">
-            <span class="text-sm font-bold text-slate-500 uppercase tracking-widest">Total Amount</span>
-            <span class="text-3xl font-black text-teal-600 tracking-tight">₱ <span x-text="getTotal().toFixed(2)"></span></span>
-          </div>
-
-          <div class="space-y-3">
-            <label class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest px-2">Cash Received (₱)</label>
-            <div class="relative">
-              <span class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">₱</span>
-              <input 
-                type="number" 
-                x-model="cashAmount" 
-                @input="calculateChange()"
-                placeholder="0.00" 
-                class="w-full pl-12 pr-6 py-5 bg-white border-2 border-slate-100 rounded-3xl focus:outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all font-black text-2xl text-slate-800"
-              >
-            </div>
-          </div>
-
-          <div class="flex items-center justify-between px-2 pt-2">
-            <span class="text-sm font-bold text-slate-500">Change Due</span>
-            <span class="text-xl font-black text-slate-800" :class="calculateChange() > 0 ? 'text-emerald-600' : ''">₱ <span x-text="calculateChange().toFixed(2)"></span></span>
-          </div>
-        </div>
-
-        <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-3">
-          <button @click="paymentModalOpen = false" class="flex-1 py-4 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all">Cancel</button>
-          <button 
-            @click="confirmPayment()" 
-            :disabled="!isValidPayment()"
-            :class="!isValidPayment() ? 'opacity-50 cursor-not-allowed bg-slate-300 text-slate-500' : 'bg-teal-600 text-white shadow-lg shadow-teal-500/20 hover:bg-teal-700'"
-            class="flex-[2] py-4 font-bold rounded-2xl transition-all flex items-center justify-center gap-2"
-          >
-            <i data-lucide="check-circle" class="w-5 h-5"></i>
-            <span>Confirm Payment</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Print-Only Receipt -->
-    <div class="hidden print:block print:w-full print:absolute print:inset-0 print:bg-white print:z-[9999]" x-show="lastTransactionId !== ''">
-      <div class="w-full max-w-sm mx-auto bg-white overflow-hidden text-black">
-        <!-- Receipt Header -->
-        <div class="p-6 border-b border-dashed border-slate-300 flex flex-col items-center justify-center text-center space-y-2">
-            <div class="w-12 h-12 rounded-xl shadow-none flex items-center justify-center mb-2">
-                <img src="/src/img/logo.png" alt="Logo" class="w-8 h-8 object-contain">
-            </div>
-            <h2 class="text-xl font-black text-slate-800 tracking-tight leading-none print:text-black">DavaoDeOro Pharmacy</h2>
-            <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest print:text-slate-800">Official Receipt</p>
-        </div>
-
-        <!-- Receipt Details -->
-        <div class="p-6 space-y-6">
-            <div class="flex justify-between text-xs font-medium text-slate-500 border-b border-dashed border-slate-200 pb-4 print:text-black print:border-black">
-                <div>
-                    <p>Date: <span class="font-bold text-slate-700 print:text-black" x-text="lastTransactionDate"></span></p>
-                    <p>TRX ID: <span class="font-bold text-slate-700 print:text-black" x-text="lastTransactionId"></span></p>
-                </div>
-                <div class="text-right">
-                    <p>Cashier: <span class="font-bold text-slate-700 print:text-black">Admin</span></p>
-                </div>
-            </div>
-
-            <!-- Items -->
-            <div class="space-y-3">
-                <div class="flex justify-between text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2 print:text-black print:border-black">
-                    <span class="w-2/3">Item Description</span>
-                    <span class="w-1/3 text-right">Amount</span>
-                </div>
-                
-                <div class="space-y-3 max-h-48 overflow-y-auto pr-2 hide-scrollbar print:max-h-none print:overflow-visible">
-                    <template x-for="item in lastTransactionItems" :key="item.id">
-                        <div class="flex justify-between items-start text-sm print:text-black">
-                            <div class="w-2/3 pr-2">
-                                <p class="font-bold text-slate-800 print:text-black" x-text="item.name"></p>
-                                <p class="text-xs text-slate-500 font-medium print:text-black" x-text="item.quantity + ' x ₱ ' + item.numericPrice.toFixed(2)"></p>
-                            </div>
-                            <div class="w-1/3 text-right font-bold text-slate-700 print:text-black">
-                                ₱ <span x-text="(item.quantity * item.numericPrice).toFixed(2)"></span>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-
-            <!-- Totals -->
-            <div class="border-t border-dashed border-slate-300 pt-4 space-y-2 print:border-black">
-                <div class="flex justify-between text-sm font-medium text-slate-500 print:text-black">
-                    <span>Subtotal</span>
-                    <span>₱ <span x-text="lastTransactionTotal.toFixed(2)"></span></span>
-                </div>
-                <div class="flex justify-between text-sm font-medium text-slate-500 print:text-black">
-                    <span>Tax (0%)</span>
-                    <span>₱ 0.00</span>
-                </div>
-                <div class="flex justify-between items-end pt-2">
-                    <span class="text-sm font-bold text-slate-800 uppercase print:text-black">Total Due</span>
-                    <span class="text-2xl font-black text-slate-900 tracking-tight print:text-black">₱ <span x-text="lastTransactionTotal.toFixed(2)"></span></span>
-                </div>
-            </div>
-
-            <!-- Payment Info -->
-            <div class="bg-slate-50 rounded-xl p-4 space-y-1 print:bg-transparent print:p-0 print:border-t print:border-dashed print:border-black print:pt-4">
-                <div class="flex justify-between text-xs font-bold text-slate-500 print:text-black">
-                    <span>Cash Tendered</span>
-                    <span class="text-slate-700 print:text-black">₱ <span x-text="lastTransactionCash.toFixed(2)"></span></span>
-                </div>
-                <div class="flex justify-between text-xs font-bold text-emerald-600 print:text-black">
-                    <span>Change</span>
-                    <span>₱ <span x-text="lastTransactionChange.toFixed(2)"></span></span>
-                </div>
-            </div>
-            
-            <div class="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-4 print:text-black">
-                <p>Thank you for your business!</p>
-            </div>
-        </div>
-      </div>
-    </div>
-
-
-    <div class="bg-mesh print:hidden"></div>
-
-    <aside 
-      class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0 print:hidden"
-      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-    >
-      <!-- Mobile Toggle Arrow (Overlapping Edge) -->
-      <button 
-        x-show="sidebarOpen"
-        x-cloak
-        @click="sidebarOpen = false" 
-        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-teal-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-teal-500/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all"
-      >
-        <i data-lucide="chevron-left" class="w-5 h-5"></i>
-      </button>
-
-      <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
-        <div class="p-8">
-          <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
-            <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
-              <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-cover">
-            </div>
-            <div>
-              <h1 class="text-xl font-extrabold tracking-tight text-slate-800 leading-none">DavaoDeOro</h1>
-              <span class="text-[10px] font-bold uppercase tracking-widest text-teal-600 mt-1 block">Pharmacy</span>
-            </div>
-          </a>
-        </div>
-
-        <!-- Navigation -->
-        <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
-          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
-          
-          <a href="index.html" class="nav-link w-full">
+        <nav class="flex-1 px-4 space-y-1">
+          <a href="index.html" class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
             <i data-lucide="layout-grid" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Dashboard</span>
+            <span class="font-medium lg:hidden xl:block">Dashboard</span>
           </a>
-
-          <a href="inventory.html" class="nav-link w-full">
+          <a href="inventory.html" class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
             <i data-lucide="package" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Inventory</span>
+            <span class="font-medium lg:hidden xl:block">Inventory</span>
           </a>
-
-          <a href="POST_terminal.html" class="nav-link w-full active">
-            <i data-lucide="shopping-bag" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">POS Terminal</span>
+          <a href="POST_terminal.html" class="flex items-center gap-3 p-3 bg-teal-50 text-teal-600 rounded-xl transition-all">
+            <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+            <span class="font-semibold lg:hidden xl:block">POS Terminal</span>
           </a>
-
-          <a href="sales.html" class="nav-link w-full">
-            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Sales History</span>
-          </a>
-
-
-
-          <a href="reports.html" class="nav-link w-full">
-            <i data-lucide="file-text" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Reports</span>
-          </a>
-
-
-
+          <!-- More links... -->
         </nav>
 
-        <!-- Logout -->
-        <div class="p-6 mt-auto">
-          <button class="w-full flex items-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
-            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i>
-            <span>Logout Account</span>
-          </button>
+        <div class="p-4 border-t border-slate-100">
+           <button class="w-full flex items-center gap-3 p-3 text-rose-600 hover:bg-rose-50 rounded-xl transition-all group">
+             <i data-lucide="log-out" class="w-5 h-5 group-hover:-translate-x-1 transition-transform"></i>
+             <span class="font-medium lg:hidden xl:block">Logout</span>
+           </button>
         </div>
       </div>
     </aside>
 
     <!-- Main Content Area -->
-    <main class="lg:ml-72 min-h-screen transition-all duration-500 flex flex-col md:flex-row gap-0 print:hidden">
+    <main class="lg:ml-20 xl:ml-72 min-h-screen flex flex-col">
       
-      <!-- Center: Product Selection (Left when on main grid) -->
-      <div class="flex-1 p-6 md:p-8 space-y-8 overflow-y-auto max-h-screen hide-scrollbar">
-        <!-- Header -->
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-4 md:gap-6">
-            <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
-              <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6"></i>
-            </button>
-            <div>
-              <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Point of Sale</h2>
-              <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap">Quick checkout and bill generation</p>
-            </div>
-          </div>
-          <div class="hidden sm:flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
-            <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span class="text-xs font-bold text-slate-600">Session: Active</span>
+      <!-- Top Bar -->
+      <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-3 sm:px-6 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <button @click="sidebarOpen = true" class="lg:hidden p-2 hover:bg-slate-100 rounded-lg">
+            <i data-lucide="menu" class="w-5 h-5"></i>
+          </button>
+          <div>
+            <h1 class="text-xl font-bold text-slate-900 tracking-tight">Point of Sale</h1>
+            <p class="text-xs text-slate-500 font-medium hidden sm:block">DavaoDeOro Pharmacy Management</p>
           </div>
         </div>
 
-        <!-- Filters & Search -->
-        <div class="space-y-6 animate-bento">
-          <div class="relative group">
-            <i data-lucide="search" class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-teal-600 transition-colors"></i>
-            <input 
-              type="text" 
-              x-model="searchQuery"
-              placeholder="Search by name, category or barcode..." 
-              class="w-full pl-14 pr-6 py-5 bg-white border border-slate-100 rounded-4xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm font-medium"
-            >
+        <div class="flex items-center gap-3">
+          <div class="hidden md:flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+            <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">System Live</span>
+          </div>
+          <!-- Cart Toggle for Mobile -->
+          <button @click="cartOpen = true" class="lg:hidden relative p-3 bg-teal-600 text-white rounded-2xl shadow-lg shadow-teal-600/20">
+            <i data-lucide="shopping-cart" class="w-5 h-5"></i>
+            <template x-if="cart.length > 0">
+              <span class="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white" x-text="cart.length"></span>
+            </template>
+          </button>
+        </div>
+      </header>
+
+      <div class="flex-1 flex flex-col lg:flex-row h-[calc(100vh-64px)] overflow-hidden">
+        
+        <!-- Center Area: Products -->
+        <div class="flex-1 flex flex-col p-4 sm:p-6 overflow-hidden bg-slate-50/50">
+          
+          <!-- Search & Categories -->
+          <div class="mb-6 space-y-4">
+            <div class="relative max-w-2xl">
+              <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
+              <input type="text" x-model="searchQuery" placeholder="Search medicines, category..." class="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-[1.25rem] focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all text-sm shadow-sm">
+            </div>
+            
+            <div class="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+              <template x-for="cat in ['All', 'Pain Relief', 'Antibiotics', 'Vitamins', 'Medical Supplies']">
+                <button 
+                  @click="selectedCategory = cat"
+                  :class="selectedCategory === cat ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/20' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
+                  class="px-5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+                  x-text="cat"
+                ></button>
+              </template>
+            </div>
           </div>
 
-          <div class="flex gap-3 overflow-x-auto pb-2 hide-scrollbar">
-            <template x-for="cat in ['All', 'Pain Relief', 'Antibiotics', 'Vitamins', 'Cardiovascular', 'First Aid', 'Medical Supplies']">
-              <button 
-                @click="selectedCategory = cat"
-                :class="selectedCategory === cat ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-100'"
-                class="px-6 py-3 rounded-2xl text-xs font-bold transition-all whitespace-nowrap"
-                x-text="cat"
-              ></button>
+          <!-- Products Grid -->
+          <div class="flex-1 overflow-y-auto pr-2 -mr-2 space-y-6 hide-scrollbar">
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 pb-8">
+              <template x-for="med in medicines.filter(m => (selectedCategory === 'All' || m.category === selectedCategory) && (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || m.category.toLowerCase().includes(searchQuery.toLowerCase())))" :key="med.id">
+                <div @click="addToCart(med)" class="bg-white p-3 sm:p-4 rounded-3xl border border-slate-200 shadow-sm hover:border-teal-500 hover:shadow-md transition-all cursor-pointer group flex flex-col">
+                  <!-- Category & Stock badges - REDESIGNED to avoid overlap -->
+                  <div class="flex items-center justify-between mb-4">
+                    <span class="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-slate-100 text-slate-500" x-text="med.category"></span>
+                    <span :class="parseInt(String(med.stock).replace(' units','')) < 10 ? 'text-rose-500 bg-rose-50' : 'text-emerald-600 bg-emerald-50'" class="text-[9px] font-black uppercase px-2 py-0.5 rounded-md" x-text="med.stock"></span>
+                  </div>
+                  
+                  <div class="flex-1 space-y-1 mb-4">
+                    <h3 class="text-sm font-bold text-slate-800 line-clamp-2 leading-tight" x-text="med.name"></h3>
+                    <div class="flex items-center gap-1">
+                       <template x-if="med.type"><span class="text-[8px] font-bold text-slate-400" x-text="med.type"></span></template>
+                       <template x-if="med.kind"><span class="text-[8px] font-bold text-teal-600" x-text="'• ' + med.kind"></span></template>
+                    </div>
+                  </div>
+
+                  <div class="flex items-end justify-between mt-auto pt-3 border-t border-slate-50">
+                    <span class="text-base font-black text-slate-900" x-text="med.sellingPrice"></span>
+                    <div class="w-8 h-8 bg-slate-50 group-hover:bg-teal-600 group-hover:text-white rounded-xl flex items-center justify-center transition-colors">
+                      <i data-lucide="plus" class="w-4 h-4"></i>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Cart Section -->
+        <div class="cart-sidebar w-full lg:w-[400px] bg-white border-l border-slate-200 flex flex-col shadow-2xl lg:shadow-none" :class="cartOpen ? 'open' : ''">
+          
+          <!-- Cart Header -->
+          <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <h2 class="text-xl font-bold text-slate-800">Current Order</h2>
+              <span class="bg-teal-50 text-teal-600 text-[10px] font-black px-2 py-0.5 rounded-full" x-text="cart.length"></span>
+            </div>
+            <button @click="cartOpen = false" class="lg:hidden p-2 hover:bg-slate-100 rounded-lg">
+              <i data-lucide="chevron-down" class="w-5 h-5"></i>
+            </button>
+            <button @click="cart = []" class="hidden lg:block text-[10px] font-bold text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors">Clear All</button>
+          </div>
+
+          <!-- Items Area -->
+          <div class="flex-1 overflow-y-auto p-6 space-y-4 hide-scrollbar">
+            <template x-if="cart.length === 0">
+              <div class="h-full flex flex-col items-center justify-center text-center opacity-40">
+                <i data-lucide="shopping-bag" class="w-16 h-16 text-slate-200 mb-4"></i>
+                <p class="font-bold text-slate-400">Your cart is empty</p>
+                <p class="text-xs">Add items to proceed</p>
+              </div>
+            </template>
+
+            <template x-for="item in cart" :key="item.id">
+              <div class="flex items-center gap-4 bg-slate-50/50 p-4 rounded-3xl border border-slate-100 animate-bento">
+                <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center font-bold text-teal-600 border border-slate-100" x-text="item.name.charAt(0)"></div>
+                <div class="flex-1 min-w-0">
+                  <h4 class="text-sm font-bold text-slate-800 truncate" x-text="item.name"></h4>
+                  <p class="text-xs font-semibold text-slate-500" x-text="item.sellingPrice"></p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button @click="if(item.quantity > 1) item.quantity--; else removeFromCart(item.id)" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:border-rose-500 hover:text-rose-500 transition-colors">
+                    <span class="text-base font-bold select-none">-</span>
+                  </button>
+                  <span class="text-base font-black text-slate-800 w-6 text-center" x-text="item.quantity"></span>
+                  <button @click="item.quantity++" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:border-teal-500 hover:text-teal-600 transition-colors">
+                    <span class="text-base font-bold select-none">+</span>
+                  </button>
+                </div>
+              </div>
             </template>
           </div>
-        </div>
 
-        <!-- Products Grid -->
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7 gap-3 animate-bento delay-1">
-          <template x-for="med in medicines.filter(m => (selectedCategory === 'All' || m.category === selectedCategory) && (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.barcode && m.barcode.includes(searchQuery)) || m.category.toLowerCase().includes(searchQuery.toLowerCase())))" :key="med.id">
-            <div 
-              @click="addToCart(med)"
-              :class="parseInt(String(med.stock).replace(' units', '')) === 0 ? 'opacity-60 grayscale cursor-not-allowed' : 'cursor-pointer hover:border-teal-500/30'"
-              class="glass-card p-3.5 rounded-2xl group transition-all border border-white/40 shadow-sm"
+          <!-- Summary & Pay Button -->
+          <div class="p-6 sm:p-8 bg-white border-t border-slate-100 space-y-6">
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Subtotal</span>
+                <span class="text-lg font-bold text-slate-800">₱ <span x-text="getTotal().toFixed(2)"></span></span>
+              </div>
+              <div class="flex items-center justify-between pt-4 border-t border-dashed border-slate-200">
+                <span class="text-sm font-black text-slate-800 uppercase tracking-wider">Net Total</span>
+                <span class="text-3xl font-black text-teal-600 tracking-tight">₱ <span x-text="getTotal().toFixed(2)"></span></span>
+              </div>
+            </div>
+
+            <button 
+              @click="openPaymentModal()" 
+              :disabled="cart.length === 0" 
+              class="w-full py-5 bg-teal-600 text-white font-bold rounded-3xl shadow-xl shadow-teal-600/20 hover:bg-teal-700 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed group"
             >
-              <div class="flex items-start justify-between mb-2.5">
-                <div :class="`w-9 h-9 ${med.color} rounded-xl flex items-center justify-center font-bold text-sm shadow-sm border border-black/5 group-hover:scale-105 transition-transform`" x-text="med.name.charAt(0)"></div>
-                <div class="flex flex-col items-end gap-1">
-                  <span class="bg-slate-50/80 px-2 py-0.5 rounded-full border border-slate-100/50 text-[8px] font-bold text-slate-400 uppercase tracking-tight" x-text="med.category"></span>
-                  <template x-if="med.kind">
-                    <span :class="med.kind === 'Medicine' ? 'bg-teal-50 text-teal-600' : 'bg-indigo-50 text-indigo-600'" class="px-2 py-0.5 rounded-full text-[7px] font-black uppercase" x-text="med.kind"></span>
-                  </template>
-                  <template x-if="med.type">
-                    <span :class="med.type === 'Branded' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'" class="px-2 py-0.5 rounded-full text-[7px] font-black uppercase" x-text="med.type"></span>
-                  </template>
-                </div>
-              </div>
-              <div class="space-y-1">
-                <h3 class="text-xs font-bold text-slate-800 truncate" x-text="med.name"></h3>
-                <div class="flex items-center justify-between">
-                  <span class="text-lg font-black text-slate-900 tracking-tight" x-text="med.sellingPrice"></span>
-                  <span :class="parseInt(String(med.stock).replace(' units','')) < 5 ? 'text-rose-500' : 'text-teal-600'" class="text-[10px] font-bold uppercase" x-text="med.stock + ' in stock'"></span>
-                </div>
-              </div>
-              <div class="mt-2.5 pt-2.5 border-t border-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                 <span class="text-[8px] font-bold text-teal-600 uppercase flex items-center gap-1">
-                   <template x-if="parseInt(String(med.stock).replace(' units','')) > 0">
-                     <span class="flex items-center gap-1"><i data-lucide="plus" class="w-2 h-2"></i> Quick Add</span>
-                   </template>
-                   <template x-if="parseInt(String(med.stock).replace(' units','')) === 0">
-                     <span class="text-rose-500">Out of Stock</span>
-                   </template>
-                 </span>
-              </div>
-            </div>
-          </template>
-        </div>
-      </div>
-
-      <!-- Right: Cart / Checkout Sidebar -->
-      <div class="w-full md:w-[400px] bg-white/50 backdrop-blur-3xl border-l border-white/20 flex flex-col h-screen">
-        <div class="p-8 border-b border-slate-100">
-          <div class="flex items-center justify-between">
-            <h3 class="text-xl font-bold text-slate-800">Current Sale</h3>
-            <button @click="cart = []" class="text-[10px] font-bold text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors">Clear All</button>
-          </div>
-        </div>
-
-        <!-- Cart Items -->
-        <div class="flex-1 overflow-y-auto p-8 space-y-6 hide-scrollbar">
-          <template x-if="cart.length === 0">
-            <div class="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-40">
-              <div class="w-20 h-20 bg-slate-100 rounded-4xl flex items-center justify-center text-slate-400">
-                <i data-lucide="shopping-basket" class="w-10 h-10"></i>
-              </div>
-              <p class="text-sm font-bold text-slate-500">Your cart is empty<br><span class="text-[10px] uppercase font-medium">Select items to start a sale</span></p>
-            </div>
-          </template>
-
-          <template x-for="item in cart" :key="item.id">
-            <div class="flex items-center gap-4 animate-bento">
-              <div :class="`w-12 h-12 ${item.color} rounded-2xl flex items-center justify-center font-bold text-sm shadow-sm`" x-text="item.name.charAt(0)"></div>
-              <div class="flex-1">
-                <div class="flex items-center gap-2">
-                  <h4 class="text-sm font-bold text-slate-800" x-text="item.name"></h4>
-                  <template x-if="item.type">
-                    <span :class="item.type === 'Branded' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'" class="px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-widest" x-text="item.type"></span>
-                  </template>
-                </div>
-                <p class="text-xs font-medium text-slate-400"><span x-text="item.sellingPrice"></span> × <span x-text="item.quantity"></span></p>
-              </div>
-              <div class="flex items-center gap-3">
-                <button @click="if(item.quantity > 1) item.quantity--; else removeFromCart(item.id)" class="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg hover:bg-rose-50 hover:text-rose-500 transition-colors">
-                  <i data-lucide="minus" class="w-4 h-4"></i>
-                </button>
-                <span class="text-sm font-bold text-slate-700 w-4 text-center" x-text="item.quantity"></span>
-                <button @click="item.quantity++" class="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg hover:bg-teal-50 hover:text-teal-600 transition-colors">
-                  <i data-lucide="plus" class="w-4 h-4"></i>
-                </button>
-              </div>
-            </div>
-          </template>
-        </div>
-
-        <!-- Summary & Checkout -->
-        <div class="p-8 bg-white border-t border-slate-100 space-y-6">
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium text-slate-400">Subtotal</span>
-              <span class="text-sm font-bold text-slate-700 font-mono">₱ <span x-text="getTotal().toFixed(2)"></span></span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-sm font-medium text-slate-400">Tax (0%)</span>
-              <span class="text-sm font-bold text-slate-700 font-mono">₱ 0.00</span>
-            </div>
-            <div class="pt-4 border-t border-slate-50 flex items-center justify-between">
-              <span class="text-lg font-extrabold text-slate-800">Total</span>
-              <span class="text-2xl font-black text-teal-600 tracking-tight font-mono">₱ <span x-text="getTotal().toFixed(2)"></span></span>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            
-            <button @click="if(lastTransactionId) window.print(); else alert('No recent transaction');" class="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-slate-100 transition-all gap-2 group">
-              <i data-lucide="printer" class="w-5 h-5 text-slate-400 group-hover:text-slate-600"></i>
-              <span class="text-[10px] font-bold text-slate-600 uppercase">Receipt</span>
+              <span class="text-lg font-extrabold uppercase tracking-widest">Proceed to Pay</span>
+              <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
             </button>
           </div>
-
-          <button 
-            @click="openPaymentModal()" 
-            :disabled="cart.length === 0" 
-            :class="cart.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-teal-700 active:scale-[0.98]'"
-            class="w-full py-5 bg-teal-600 text-white font-bold rounded-4xl shadow-lg shadow-teal-500/20 transition-all flex items-center justify-center gap-3 group"
-          >
-            <span class="text-lg uppercase tracking-wider">Pay Now</span>
-            <i data-lucide="arrow-right" class="w-5 h-5 transition-transform group-hover:translate-x-1"></i>
-          </button>
         </div>
       </div>
     </main>
 
+    <!-- Payment Modal -->
+    <div x-show="paymentModalOpen" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+       <div x-show="paymentModalOpen" x-transition.opacity @click="paymentModalOpen = false" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
+       <div x-show="paymentModalOpen" x-transition.scale.90 class="relative w-full max-w-lg bg-white rounded-[3rem] shadow-2xl overflow-hidden animate-bento">
+          <div class="p-8 border-b border-slate-50 flex items-center justify-between">
+             <h3 class="text-2xl font-bold text-slate-800">Checkout Payment</h3>
+             <button @click="paymentModalOpen = false" class="p-2 hover:bg-slate-100 rounded-xl transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
+          </div>
+          <div class="p-8 space-y-8">
+             <div class="bg-slate-50 p-6 rounded-4xl flex flex-col items-center text-center">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mb-2">Amount to Pay</span>
+                <span class="text-5xl font-black text-teal-600 tracking-tighter">₱ <span x-text="getTotal().toFixed(2)"></span></span>
+             </div>
+             <div class="space-y-4">
+                <label class="text-xs font-black text-slate-400 uppercase tracking-widest ml-4">Cash Received</label>
+                <div class="relative">
+                   <span class="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-black text-slate-300">₱</span>
+                   <input type="number" x-model="cashAmount" @input="calculateChange()" class="w-full pl-12 pr-6 py-6 bg-slate-50 border-2 border-transparent focus:border-teal-500 focus:bg-white rounded-3xl text-3xl font-black text-slate-800 focus:outline-none transition-all placeholder:text-slate-200" placeholder="0.00">
+                </div>
+             </div>
+             <div class="flex items-center justify-between px-4">
+                <span class="text-sm font-bold text-slate-500">Change Due</span>
+                <span class="text-2xl font-black text-emerald-600">₱ <span x-text="calculateChange().toFixed(2)"></span></span>
+             </div>
+          </div>
+          <div class="p-8 bg-slate-50/50 flex gap-4">
+             <button @click="paymentModalOpen = false" class="flex-1 py-4 font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+             <button @click="confirmPayment()" :disabled="!isValidPayment()" class="flex-[2] py-5 bg-teal-600 text-white font-black rounded-2xl shadow-xl shadow-teal-600/20 hover:bg-teal-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed">Complete Sale</button>
+          </div>
+       </div>
+    </div>
+
+    <!-- Success Toast -->
+    <div x-show="showSuccess" x-transition.scale.90 x-cloak class="fixed bottom-10 left-1/2 -translate-x-1/2 z-110 bg-emerald-600 text-white px-8 py-4 rounded-4xl shadow-2xl flex items-center gap-4">
+       <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><i data-lucide="check" class="w-6 h-6"></i></div>
+       <span class="font-bold">Transaction Completed Successfully!</span>
+    </div>
+
     <script type="module" src="/src/main.js"></script>
     <script>
-      lucide.createIcons();
-      // Need to re-run icons on Alpine updates if using lucide in loops
-      // Simple observer for demonstration
-      document.addEventListener('alpine:initialized', () => {
-        lucide.createIcons();
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide) lucide.createIcons();
+      });
+      // Handle resize to auto-open sidebar if needed
+      window.addEventListener('resize', () => {
+         if (window.innerWidth >= 1024) sidebarOpen = true;
       });
     </script>
   </body>
 </html>
+
