@@ -149,50 +149,92 @@
   }">
     
     <!-- Mobile Sidebar Backdrop -->
-    <div x-show="sidebarOpen" @click="sidebarOpen = false" x-cloak class="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden transition-opacity"></div>
+    <div 
+      x-show="sidebarOpen" 
+      @click="sidebarOpen = false" 
+      x-cloak
+      class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-200"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+    ></div>
+
+    <div class="bg-mesh"></div>
 
     <!-- Main Sidebar (Desktop/Mobile) -->
-    <aside class="fixed inset-y-0 left-0 z-50 w-72 lg:w-20 xl:w-72 bg-white border-r border-slate-200 transition-transform duration-300 lg:translate-x-0" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
-      <div class="h-full flex flex-col">
-        <div class="p-6 lg:p-4 xl:p-6 mb-4 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center">
-               <i data-lucide="cross" class="w-5 h-5 text-white"></i>
+    <aside 
+      class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+    >
+      <!-- Mobile Toggle Arrow (Overlapping Edge) -->
+      <button 
+        x-show="sidebarOpen"
+        x-cloak
+        @click="sidebarOpen = false" 
+        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-teal-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-teal-500/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all"
+      >
+        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+      </button>
+
+      <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
+        <!-- Logo Area -->
+        <div class="p-8">
+          <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
+            <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
+              <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-cover">
             </div>
-            <span class="text-lg font-bold lg:hidden xl:block">Pharmacy</span>
-          </div>
-          <button @click="sidebarOpen = false" class="lg:hidden p-2 hover:bg-slate-100 rounded-lg">
-            <i data-lucide="x" class="w-5 h-5"></i>
-          </button>
+            <div>
+              <h1 class="text-xl font-extrabold tracking-tight text-slate-800 leading-none">DavaoDeOro</h1>
+              <span class="text-[10px] font-bold uppercase tracking-widest text-teal-600 mt-1 block">Pharmacy</span>
+            </div>
+          </a>
         </div>
 
-        <nav class="flex-1 px-4 space-y-1">
-          <a href="index.html" class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
+        <!-- Navigation -->
+        <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
+          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
+          
+          <a href="index.html" class="nav-link w-full">
             <i data-lucide="layout-grid" class="w-5 h-5"></i>
-            <span class="font-medium lg:hidden xl:block">Dashboard</span>
+            <span class="font-semibold text-[15px]">Dashboard</span>
           </a>
-          <a href="inventory.html" class="flex items-center gap-3 p-3 text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
+
+          <a href="inventory.html" class="nav-link w-full">
             <i data-lucide="package" class="w-5 h-5"></i>
-            <span class="font-medium lg:hidden xl:block">Inventory</span>
+            <span class="font-semibold text-[15px]">Inventory</span>
           </a>
-          <a href="POST_terminal.html" class="flex items-center gap-3 p-3 bg-teal-50 text-teal-600 rounded-xl transition-all">
-            <i data-lucide="shopping-cart" class="w-5 h-5"></i>
-            <span class="font-semibold lg:hidden xl:block">POS Terminal</span>
+
+          <a href="POST_terminal.html" class="nav-link w-full active">
+            <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">POS Terminal</span>
           </a>
-          <!-- More links... -->
+
+          <a href="sales.html" class="nav-link w-full">
+            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Sales History</span>
+          </a>
+
+          <a href="reports.html" class="nav-link w-full">
+            <i data-lucide="file-text" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Reports</span>
+          </a>
         </nav>
 
-        <div class="p-4 border-t border-slate-100">
-           <button class="w-full flex items-center gap-3 p-3 text-rose-600 hover:bg-rose-50 rounded-xl transition-all group">
-             <i data-lucide="log-out" class="w-5 h-5 group-hover:-translate-x-1 transition-transform"></i>
-             <span class="font-medium lg:hidden xl:block">Logout</span>
-           </button>
+        <!-- Logout -->
+        <div class="p-6 mt-auto">
+          <button class="w-full flex items-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
+            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i>
+            <span>Logout Account</span>
+          </button>
         </div>
       </div>
     </aside>
 
     <!-- Main Content Area -->
-    <main class="lg:ml-20 xl:ml-72 min-h-screen flex flex-col">
+    <main class="lg:ml-72 min-h-screen flex flex-col transition-all duration-500">
       
       <!-- Top Bar -->
       <header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-3 sm:px-6 flex items-center justify-between">

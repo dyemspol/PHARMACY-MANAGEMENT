@@ -355,22 +355,24 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 md:gap-3">
           <button 
             @click="addGeneralModalOpen = true"
-            class="px-6 py-3 bg-emerald-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all cursor-pointer relative z-10"
+            class="h-10 md:h-14 px-3 md:px-8 bg-emerald-600 text-white font-bold rounded-xl md:rounded-3xl flex items-center justify-center gap-2 md:gap-3 shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all hover:-translate-y-1 active:translate-y-0 cursor-pointer relative z-10 whitespace-nowrap group"
+            title="Add General Item"
           >
-          <i data-lucide="package" class="w-4 h-4 text-white"></i>
-          <span>Add General Item</span>
-        </button>
+            <i data-lucide="package" class="w-4 h-4 md:w-5 md:h-5 text-white transition-transform group-hover:scale-110"></i>
+            <span class="hidden sm:block text-sm md:text-base">Add General Item</span>
+          </button>
           <button 
             @click="addModalOpen = true"
-            class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all cursor-pointer relative z-10"
+            class="h-10 md:h-14 px-3 md:px-8 bg-indigo-600 text-white font-bold rounded-xl md:rounded-3xl flex items-center justify-center gap-2 md:gap-3 shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-all hover:-translate-y-1 active:translate-y-0 cursor-pointer relative z-10 whitespace-nowrap group"
+            title="Add Medicine"
           >
-              <i data-lucide="plus" class="w-4 h-4 text-white"></i>
-              <span class="text-sm md:text-base">Add Medicine</span>
-            </button>
-          </div>
+            <i data-lucide="plus" class="w-4 h-4 md:w-5 md:h-5 text-white transition-transform group-hover:rotate-90"></i>
+            <span class="hidden sm:block text-sm md:text-base">Add Medicine</span>
+          </button>
+        </div>
       </header>
 
       <!-- Inventory Content -->
@@ -378,7 +380,7 @@
 
         <!-- Search & Filter Area -->
         <div
-          class="bg-white/50 backdrop-blur-xl border border-white/40 p-2 rounded-4xl flex flex-col md:flex-row gap-4 items-center animate-bento relative z-50">
+          class="bg-white/50 backdrop-blur-xl border border-white/40 p-2 rounded-4xl flex flex-col md:flex-row gap-4 items-center animate-bento relative z-20">
           <div class="relative flex-1 w-full p-2">
             <i data-lucide="search" class="absolute left-10 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
             <input type="text" x-model="searchTerm" placeholder="Search medicines..."
@@ -515,7 +517,7 @@
                             </td>
                             <td class="px-8 py-6 text-center">
                               <span
-                                class="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-full border border-emerald-100/50"
+                                class="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-full border border-emerald-100/50 whitespace-nowrap"
                                 x-text="medicine.stock"></span>
                             </td>
                             <td class="px-8 py-6 text-center">
@@ -630,7 +632,7 @@
                             </td>
                             <td class="px-8 py-6 text-center">
                               <span
-                                class="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-full border border-emerald-100/50"
+                                class="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[11px] font-bold rounded-full border border-emerald-100/50 whitespace-nowrap"
                                 x-text="medicine.stock"></span>
                             </td>
                             <td class="px-8 py-6 text-center">
