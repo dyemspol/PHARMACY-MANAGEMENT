@@ -35,19 +35,27 @@
             if (window.salesDb) {
                 clearInterval(waitForDb);
                 window.salesDb.fetchSalesData((sales) => {
-                    // map exactly how sales.html wants it
-                    this.salesData = sales.map(data => ({
-                        id: (data.transactionId || data.id).substring(0, 10).toUpperCase(),
-                        rawId: data.id,
-                        date: data.date,
-                        time: data.time,
-                        items: `${data.items} item(s)`,
-                        units: `${data.units} units`,
-                        total: data.total,
-                        cart: data.cart || []
-                    }));
+                    this.salesData = sales.map(data => {
+                        const itemsArray = Array.isArray(data.items) ? data.items : (data.cart || []);
+                        const count = data.itemsCount || data.items || itemsArray.length;
+                        return {
+                            id: (data.transactionId || data.id).substring(0, 10).toUpperCase(),
+                            rawId: data.id,
+                            date: data.date,
+                            time: data.time,
+                            items: `${count} item(s)`,
+                            units: `${data.unitsCount || data.units || count} units`,
+                            total: data.total || ('₱' + (data.totalAmount || 0).toFixed(2)),
+                            cart: itemsArray.map(i => ({
+                                name: i.name,
+                                category: i.category || 'General',
+                                quantity: i.quantityPurchased || i.quantity || 1,
+                                price: i.price || (typeof i.sellingPrice === 'string' ? parseFloat(i.sellingPrice.replace('₱','')) : i.sellingPrice) || 0
+                            }))
+                        };
+                    });
                     this.isLoading = false;
-                    setTimeout(() => lucide.createIcons(), 50);
+                    setTimeout(() => { if(window.lucide) lucide.createIcons(); }, 50);
                 });
             }
         }, 100);

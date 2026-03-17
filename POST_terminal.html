@@ -131,9 +131,19 @@
       const saleDataToSave = {
           date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          items: String(this.cart.length),
-          units: String(this.cart.reduce((acc, curr) => acc + curr.quantity, 0)),
+          items: this.cart.map(item => ({
+             name: item.name,
+             price: parseFloat(String(item.sellingPrice).replace('₱', '').replace(',', '')) || 0,
+             costPrice: parseFloat(String(item.buyingPrice).replace('₱', '').replace(',', '')) || 0,
+             quantityPurchased: item.quantity,
+             category: item.category
+          })),
+          itemsCount: this.cart.length,
+          unitsCount: this.cart.reduce((acc, curr) => acc + curr.quantity, 0),
           total: '₱' + this.getTotal().toFixed(2),
+          totalAmount: this.getTotal(),
+          discountApplied: 0,
+          staff: 'System Admin',
           transactionId: this.lastTransactionId,
           createdAt: new Date()
       };

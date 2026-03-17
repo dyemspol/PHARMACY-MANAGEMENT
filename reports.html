@@ -184,37 +184,39 @@
             }, 0);
             this.averageTransaction = this.totalTransactions > 0 ? (this.totalRevenue / this.totalTransactions) : 0;
             let exactCost = 0;
-            this.salesData.forEach(sale => {
-              if (sale.cart) {
-                sale.cart.forEach(item => {
-                  let cost = parseFloat(item.buyingPrice) || 0;
-                  if (typeof item.buyingPrice === 'string' && item.buyingPrice.includes('₱')) {
-                    cost = parseFloat(item.buyingPrice.replace('₱', '').replace(',', '')) || 0;
-                  }
-                  exactCost += (cost > 0 ? (cost * item.quantity) : (item.numericPrice * item.quantity * 0.7));
-                });
-              }
+            this.salesData.forEach(s => {
+              const items = Array.isArray(s.items) ? s.items : (s.cart || []);
+              items.forEach(item => {
+                let cost = item.costPrice || item.buyingPrice || 0;
+                if (typeof cost === 'string' && cost.includes('₱')) {
+                  cost = parseFloat(cost.replace('₱', '').replace(',', '')) || 0;
+                }
+                const qty = item.quantityPurchased || item.quantity || 1;
+                const price = item.price || item.numericPrice || (typeof item.sellingPrice === 'string' ? parseFloat(item.sellingPrice.replace('₱','')) : 0) || 0;
+                exactCost += (cost > 0 ? (cost * qty) : (price * qty * 0.7));
+              });
             });
             this.netProfit = this.totalRevenue - exactCost;
           },
 
           calculateTopSelling() {
             const itemMap = {};
-            this.salesData.forEach(sale => {
-              if (sale.cart) {
-                sale.cart.forEach(item => {
-                  if (!itemMap[item.name]) {
-                    itemMap[item.name] = {
-                      name: item.name,
-                      category: item.category || 'General',
-                      units: 0,
-                      revenue: 0
-                    };
-                  }
-                  itemMap[item.name].units += item.quantity;
-                  itemMap[item.name].revenue += (item.numericPrice * item.quantity);
-                });
-              }
+            this.salesData.forEach(s => {
+              const items = Array.isArray(s.items) ? s.items : (s.cart || []);
+              items.forEach(item => {
+                if (!itemMap[item.name]) {
+                  itemMap[item.name] = {
+                    name: item.name,
+                    category: item.category || 'General',
+                    units: 0,
+                    revenue: 0
+                  };
+                }
+                const qty = item.quantityPurchased || item.quantity || 1;
+                const priceValue = item.price || (typeof item.sellingPrice === 'string' ? parseFloat(item.sellingPrice.replace('₱','')) : item.sellingPrice) || item.numericPrice || 0;
+                itemMap[item.name].units += qty;
+                itemMap[item.name].revenue += (priceValue * qty);
+              });
             });
             this.topSelling = Object.values(itemMap)
               .sort((a, b) => b.units - a.units)
