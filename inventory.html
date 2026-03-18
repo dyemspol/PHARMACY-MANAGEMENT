@@ -61,7 +61,11 @@
             this.medicines = await window.db.fetchInventory();
             this.isLoading = false;
             console.log('Fetched medicines:', this.medicines);
-            lucide.createIcons();
+            this.$nextTick(() => lucide.createIcons());
+
+            // Re-initialize icons when filtering or searching
+            this.$watch('searchTerm', () => this.$nextTick(() => lucide.createIcons()));
+            this.$watch('selectedCategory', () => this.$nextTick(() => lucide.createIcons()));
           }
         }, 100);
       },
@@ -153,7 +157,7 @@
           this.medicines.unshift(itemToSave);
           this.newMedicine = { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
           this.addModalOpen = false;
-          setTimeout(() => lucide.createIcons(), 50);
+          this.$nextTick(() => lucide.createIcons());
         } catch (err) {
           console.error(err);
           alert('Error saving to database: ' + err.message + '. Please verify your changes to the Firebase Rules were Published!');
@@ -187,7 +191,7 @@
           this.medicines.unshift(itemToSave);
           this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
           this.addGeneralModalOpen = false;
-          setTimeout(() => lucide.createIcons(), 50);
+          this.$nextTick(() => lucide.createIcons());
         } catch (err) {
           console.error(err);
           alert('Error saving to database: ' + err.message + '. Please verify your changes to the Firebase Rules were Published!');
@@ -241,6 +245,7 @@
 
         this.editModalOpen = false;
         this.editingId = null;
+        this.$nextTick(() => lucide.createIcons());
       },
       confirmDelete(medicine) {
         this.itemToDelete = medicine;
