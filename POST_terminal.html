@@ -90,8 +90,33 @@
       });
     },
 
+    getMonthsUntilExpiry(dateStr) {
+      if (!dateStr || dateStr === 'N/A') return 999;
+      const now = new Date();
+      const expiry = new Date(dateStr);
+      if (isNaN(expiry)) return 999;
+      return (expiry - now) / (1000 * 60 * 60 * 24 * 30.44);
+    },
+
     addToCart(medicine) {
+      const monthsLeft = this.getMonthsUntilExpiry(medicine.expiryDate);
+      if (monthsLeft <= 0) {
+        alert(`CRITICAL: ${medicine.name} is EXPIRED since ${medicine.expiryDate}! Cannot sell.`);
+        return;
+      }
+      if (monthsLeft <= 6) {
+        if (!confirm(`Warning: ${medicine.name} is expiring soon (${medicine.expiryDate}). Continue adding to cart?`)) {
+          return;
+        }
+      }
+
       const stockNum = window.db.parseStock(medicine.stock);
+      if (stockNum <= 50) {
+        if (!confirm(`Stock Alert: ${medicine.name} has only ${medicine.stock} left. Continue adding to cart?`)) {
+          return;
+        }
+      }
+
       const existing = this.cart.find(item => item.id === medicine.id);
       if (existing) {
         if (existing.quantity < stockNum) {

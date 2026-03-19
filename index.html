@@ -224,6 +224,38 @@
       </header>
 
       <div class="p-8 space-y-8" @click="refreshVisuals()">
+        <!-- Expiry Alert Banner -->
+        <template x-if="stats.expiringCount > 0">
+          <div class="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 flex items-center justify-between animate-pulse">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <h3 class="text-amber-900 font-black tracking-tight">Expiring Inventory Alert</h3>
+                <p class="text-sm text-amber-700 font-medium">There are <span class="font-bold" x-text="stats.expiringCount"></span> items expiring within the next 6 months.</p>
+              </div>
+            </div>
+            <a href="inventory.html" class="px-6 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-all shadow-md">Review Stock</a>
+          </div>
+        </template>
+
+        <!-- Low Stock Alert Banner -->
+        <template x-if="stats.lowStockCount > 0">
+          <div class="bg-rose-50 border border-rose-200 rounded-[2rem] p-6 flex items-center justify-between mb-4">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/20">
+                <i data-lucide="package" class="w-6 h-6"></i>
+              </div>
+              <div>
+                <h3 class="text-rose-900 font-black tracking-tight">Low Stock Alert (50 Units Threshold)</h3>
+                <p class="text-sm text-rose-700 font-medium">There are <span class="font-bold" x-text="stats.lowStockCount"></span> items with 50 units or fewer remaining.</p>
+              </div>
+            </div>
+            <a href="inventory.html" class="px-6 py-3 bg-rose-500 text-white font-bold rounded-xl hover:bg-rose-600 transition-all shadow-md">Restock Now</a>
+          </div>
+        </template>
+
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <!-- Gross Sales -->
           <div class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">

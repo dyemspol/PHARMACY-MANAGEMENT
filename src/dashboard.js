@@ -141,13 +141,16 @@ function dashboardApp() {
 
     calculateInventoryStats() {
       const today = new Date();
-      const thirtyDays = new Date();
-      thirtyDays.setDate(today.getDate() + 30);
+      const sixMonths = new Date();
+      sixMonths.setMonth(today.getMonth() + 6);
+      
       this.criticalItems = this.inventory.filter((item) => {
+        if (!item.expiryDate || item.expiryDate === 'N/A') return false;
         const exp = new Date(item.expiryDate);
-        return exp <= thirtyDays && exp >= today;
+        if (isNaN(exp)) return false;
+        return exp <= sixMonths && exp >= today;
       });
-      this.lowStockItems = this.inventory.filter((item) => window.db.parseStock(item.stock) < 10);
+      this.lowStockItems = this.inventory.filter((item) => window.db.parseStock(item.stock) <= 50);
       this.stats.expiringCount = this.criticalItems.length;
       this.stats.lowStockCount = this.lowStockItems.length;
     },
