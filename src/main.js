@@ -22,11 +22,12 @@ console.log('DavaoDeOro Dashboard initialized');
 const dateEl = document.getElementById('current-date');
 if (dateEl) {
   const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  dateEl.innerText = new Date('2025-09-10').toLocaleDateString('en-US', options); 
-  // Keep the date from the image: Wednesday, September 10, 2025
+  dateEl.innerText = new Date().toLocaleDateString('en-US', options); 
 }
 
 // Logic to re-run lucide icons if Alpine modifies the DOM
 document.addEventListener('alpine:initialized', () => {
-    // Watch for tab changes to ensure icons are rendered in dynamic components if any
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
 });

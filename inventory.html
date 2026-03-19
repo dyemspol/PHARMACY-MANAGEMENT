@@ -36,9 +36,9 @@
       editModalOpen: false,
       deleteConfirmOpen: false,
       searchTerm: '',
-      newMedicine: { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      newMedicine: { name: '', brandName: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
       newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
-      editingMedicine: { name: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      editingMedicine: { name: '', brandName: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
       editingKind: 'Medicine',
       editingId: null,
       itemToDelete: null,
@@ -137,6 +137,7 @@
         
         const itemToSave = {
           name: this.newMedicine.name,
+          brandName: this.newMedicine.brandName || '',
           kind: 'Medicine',
           category: this.newMedicine.category,
           type: this.newMedicine.type,
@@ -170,6 +171,7 @@
         
         const itemToSave = {
           name: this.newGeneralItem.name,
+          brandName: '',
           kind: 'General',
           barcode: this.newGeneralItem.barcode || 'N/A',
           category: this.newGeneralItem.category,
@@ -200,11 +202,12 @@
       openEditModal(medicine) {
         this.editingId = medicine.id;
         this.editingKind = medicine.kind || 'Medicine';
-        const stockVal = String(medicine.stock).replace(' units', '');
-        const costVal = String(medicine.costPrice).replace('₱', '');
-        const sellingVal = String(medicine.sellingPrice).replace('₱', '');
+        const stockVal = window.db.parseStock(medicine.stock);
+        const costVal = window.db.parseCurrency(medicine.costPrice);
+        const sellingVal = window.db.parseCurrency(medicine.sellingPrice);
         this.editingMedicine = { 
           name: medicine.name, 
+          brandName: medicine.brandName || '',
           barcode: medicine.barcode || '',
           category: medicine.category, 
           type: medicine.type || 'N/A', 
@@ -222,6 +225,7 @@
         
         const updatedData = {
           name: this.editingMedicine.name,
+          brandName: this.editingKind === 'Medicine' ? (this.editingMedicine.brandName || '') : '',
           barcode: this.editingMedicine.barcode || 'N/A',
           category: this.editingMedicine.category,
           stock: this.editingMedicine.stock + ' units',
@@ -503,7 +507,12 @@
                                   x-text="medicine.name.charAt(0)">
                                 </div>
                                 <div class="flex flex-col">
-                                  <span class="text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
+                                  <div class="flex items-center gap-2">
+                                    <span class="text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
+                                    <template x-if="medicine.brandName">
+                                      <span class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md" x-text="medicine.brandName"></span>
+                                    </template>
+                                  </div>
                                   <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"
                                     x-text="medicine.category"></span>
                                 </div>
@@ -702,11 +711,17 @@
                       <!-- Medicine form contents -->
                       <div class="grid grid-cols-2 gap-6">
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Generic
                             Name</label>
                           <input x-model="newMedicine.name" type="text" placeholder="e.g. Amoxicillin"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Brand
+                            Name (Optional)</label>
+                          <input x-model="newMedicine.brandName" type="text" placeholder="e.g. Augmentin"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch
@@ -917,10 +932,15 @@
                       <div class="grid grid-cols-2 gap-6">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest"
-                            x-text="editingKind === 'Medicine' ? 'Medicine Name' : 'Product Name'"></label>
+                            x-text="editingKind === 'Medicine' ? 'Generic Name' : 'Product Name'"></label>
                           <input x-model="editingMedicine.name" type="text"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
+                        </div>
+                        <div x-show="editingKind === 'Medicine'" class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Brand Name</label>
+                          <input x-model="editingMedicine.brandName" type="text"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest"

@@ -70,6 +70,14 @@ function dashboardApp() {
         this.applyAllFilters();
         this.isLoading = false;
       });
+
+      // Safety fallback: Hide loader after 5 seconds regardless
+      setTimeout(() => {
+        if (this.isLoading) {
+          console.warn('Dashboard loading timed out. Clearing overlay anyway.');
+          this.isLoading = false;
+        }
+      }, 5000);
       this.refreshInventory();
       setInterval(() => this.refreshInventory(), 30000);
     },
@@ -139,19 +147,19 @@ function dashboardApp() {
         const exp = new Date(item.expiryDate);
         return exp <= thirtyDays && exp >= today;
       });
-      this.lowStockItems = this.inventory.filter((item) => (parseInt(item.quantity) || 0) < 10);
+      this.lowStockItems = this.inventory.filter((item) => window.db.parseStock(item.stock) < 10);
       this.stats.expiringCount = this.criticalItems.length;
       this.stats.lowStockCount = this.lowStockItems.length;
     },
 
     calculateSalesStats() {
       this.stats.grossSales = this.sales.reduce((sum, s) => {
-        const amt = s.totalAmount || (typeof s.total === 'string' ? parseFloat(s.total.replace('₱', '').replace(',', '')) : parseFloat(s.total)) || 0;
+        const amt = s.totalAmount || window.db.parseCurrency(s.total);
         return sum + amt;
       }, 0);
       
       this.stats.netSales = this.sales.reduce((sum, s) => {
-        const amt = s.totalAmount || (typeof s.total === 'string' ? parseFloat(s.total.replace('₱', '').replace(',', '')) : parseFloat(s.total)) || 0;
+        const amt = s.totalAmount || window.db.parseCurrency(s.total);
         return sum + (amt - (parseFloat(s.discountApplied) || 0));
       }, 0);
 
@@ -159,13 +167,13 @@ function dashboardApp() {
         let margin = 0;
         if (Array.isArray(s.items)) {
           s.items.forEach(i => {
-            const price = i.price || (typeof i.sellingPrice === 'string' ? parseFloat(i.sellingPrice.replace('₱', '').replace(',', '')) : parseFloat(i.sellingPrice)) || 0;
-            const cost = i.costPrice || (typeof i.buyingPrice === 'string' ? parseFloat(i.buyingPrice.replace('₱', '').replace(',', '')) : parseFloat(i.buyingPrice)) || (price * 0.7);
+            const price = i.price || window.db.parseCurrency(i.sellingPrice);
+            const cost = i.costPrice || window.db.parseCurrency(i.buyingPrice) || (price * 0.7);
             margin += (price - cost) * (i.quantityPurchased || i.quantity || 1);
           });
         } else {
           // Fallback if no items array
-          const total = s.totalAmount || (typeof s.total === 'string' ? parseFloat(s.total.replace('₱', '').replace(',', '')) : 0);
+          const total = s.totalAmount || window.db.parseCurrency(s.total);
           margin = total * 0.3;
         }
         return sum + margin;
@@ -212,7 +220,7 @@ function dashboardApp() {
               return this.parseSaleDate(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) === label;
             })
             .reduce((sum, s) => {
-               const amt = s.totalAmount || (typeof s.total === 'string' ? parseFloat(s.total.replace('₱', '').replace(',', '')) : parseFloat(s.total)) || 0;
+               const amt = s.totalAmount || window.db.parseCurrency(s.total);
                return sum + amt;
             }, 0)
         );

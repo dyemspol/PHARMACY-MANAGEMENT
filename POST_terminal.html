@@ -63,10 +63,14 @@
           lucide.createIcons();
         }
       }, 100);
+
+      window.addEventListener('resize', () => {
+         if (window.innerWidth >= 1024) this.sidebarOpen = true;
+      });
     },
 
     addToCart(medicine) {
-      const stockNum = parseInt(String(medicine.stock).replace(' units', '')) || 0;
+      const stockNum = window.db.parseStock(medicine.stock);
       const existing = this.cart.find(item => item.id === medicine.id);
       if (existing) {
         if (existing.quantity < stockNum) {
@@ -83,10 +87,7 @@
 
     getTotal() {
       return this.cart.reduce((sum, item) => {
-        let priceValue = item.sellingPrice;
-        if(typeof priceValue === 'string') {
-          priceValue = parseFloat(priceValue.replace('₱', '')) || 0;
-        }
+        const priceValue = window.db.parseCurrency(item.sellingPrice);
         return sum + (priceValue * item.quantity);
       }, 0);
     },
@@ -441,10 +442,6 @@
     <script>
       document.addEventListener('DOMContentLoaded', () => {
         if (window.lucide) lucide.createIcons();
-      });
-      // Handle resize to auto-open sidebar if needed
-      window.addEventListener('resize', () => {
-         if (window.innerWidth >= 1024) sidebarOpen = true;
       });
     </script>
   </body>

@@ -82,7 +82,7 @@
           },
           calculateLowStock() {
             this.lowStockItems = this.inventoryData.filter(item => {
-              const stock = parseInt(String(item.stock).replace(' units', '')) || 0;
+              const stock = window.db.parseStock(item.stock);
               item.numericStock = stock;
               return stock < 15;
             });
@@ -177,9 +177,7 @@
             this.totalTransactions = this.salesData.length;
             this.totalRevenue = this.salesData.reduce((sum, sale) => {
               let total = sale.total;
-              if (typeof total === 'string') {
-                total = parseFloat(total.replace('₱', '').replace(',', '')) || 0;
-              }
+                total = window.db.parseCurrency(total);
               return sum + total;
             }, 0);
             this.averageTransaction = this.totalTransactions > 0 ? (this.totalRevenue / this.totalTransactions) : 0;
@@ -213,7 +211,7 @@
                   };
                 }
                 const qty = item.quantityPurchased || item.quantity || 1;
-                const priceValue = item.price || (typeof item.sellingPrice === 'string' ? parseFloat(item.sellingPrice.replace('₱','')) : item.sellingPrice) || item.numericPrice || 0;
+                const priceValue = window.db.parseCurrency(item.price || item.sellingPrice || item.numericPrice);
                 itemMap[item.name].units += qty;
                 itemMap[item.name].revenue += (priceValue * qty);
               });
