@@ -36,9 +36,9 @@
       editModalOpen: false,
       deleteConfirmOpen: false,
       searchTerm: '',
-      newMedicine: { name: '', brandName: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      newMedicine: { name: '', brandName: '', strength: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
       newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
-      editingMedicine: { name: '', brandName: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      editingMedicine: { name: '', brandName: '', strength: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
       editingKind: 'Medicine',
       editingId: null,
       itemToDelete: null,
@@ -135,9 +135,12 @@
         const colors = ['bg-teal-50 text-teal-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
         
+        const finalName = this.newMedicine.name + (this.newMedicine.strength ? ' ' + this.newMedicine.strength + 'mg' : '');
+        
         const itemToSave = {
-          name: this.newMedicine.name,
+          name: finalName,
           brandName: this.newMedicine.brandName || '',
+          strength: this.newMedicine.strength || '',
           kind: 'Medicine',
           category: this.newMedicine.category,
           type: this.newMedicine.type,
@@ -205,9 +208,18 @@
         const stockVal = window.db.parseStock(medicine.stock);
         const costVal = window.db.parseCurrency(medicine.costPrice);
         const sellingVal = window.db.parseCurrency(medicine.sellingPrice);
+        let cleanName = medicine.name;
+        let strengthVal = '';
+        const match = medicine.name.match(/(.+) (\d+)mg$/);
+        if (match) {
+          cleanName = match[1];
+          strengthVal = match[2];
+        }
+
         this.editingMedicine = { 
-          name: medicine.name, 
+          name: cleanName, 
           brandName: medicine.brandName || '',
+          strength: strengthVal,
           barcode: medicine.barcode || '',
           category: medicine.category, 
           type: medicine.type || 'N/A', 
@@ -223,9 +235,12 @@
       async saveEdit() {
         if (!this.editingId) return;
         
+        const finalName = this.editingMedicine.name + (this.editingMedicine.strength ? ' ' + this.editingMedicine.strength + 'mg' : '');
+        
         const updatedData = {
-          name: this.editingMedicine.name,
+          name: finalName,
           brandName: this.editingKind === 'Medicine' ? (this.editingMedicine.brandName || '') : '',
+          strength: this.editingKind === 'Medicine' ? (this.editingMedicine.strength || '') : '',
           barcode: this.editingMedicine.barcode || 'N/A',
           category: this.editingMedicine.category,
           stock: this.editingMedicine.stock + ' units',
@@ -709,23 +724,57 @@
 
                     <form @submit.prevent="addMedicine" class="space-y-6">
                       <!-- Medicine form contents -->
-                      <div class="grid grid-cols-2 gap-6">
-                        <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Generic
-                            Name</label>
+                      <div class="grid grid-cols-3 gap-6">
+                        <div class="col-span-2 space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Generic Name</label>
                           <input x-model="newMedicine.name" type="text" placeholder="e.g. Amoxicillin"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Brand
-                            Name (Optional)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Strength</label>
+                          <div class="relative">
+                            <input x-model="newMedicine.strength" type="text" placeholder="500"
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold pr-12">
+                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase">mg</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Brand Name (Optional)</label>
                           <input x-model="newMedicine.brandName" type="text" placeholder="e.g. Augmentin"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch
-                            Number</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
+                          <div class="relative">
+                            <select x-model="newMedicine.category"
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                              <template x-for="cat in categories">
+                                <option :value="cat" x-text="cat"></option>
+                              </template>
+                            </select>
+                            <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine Type</label>
+                          <div class="relative">
+                            <select x-model="newMedicine.type"
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                              <option value="Generic">Generic (Green)</option>
+                              <option value="Branded">Branded (Red)</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
+                          </div>
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch Number</label>
                           <input x-model="newMedicine.batch" type="text" placeholder="e.g. B-102"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
@@ -733,61 +782,35 @@
 
                       <div class="grid grid-cols-2 gap-6">
                         <div class="space-y-2">
-                          <label
-                            class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
-                          <select x-model="newMedicine.category"
-                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
-                            <template x-for="cat in categories">
-                              <option :value="cat" x-text="cat"></option>
-                            </template>
-                          </select>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
+                          <input x-model="newMedicine.expiryDate" type="date"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine
-                            Type</label>
-                          <select x-model="newMedicine.type"
-                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
-                            <option value="Generic">Generic (Green)</option>
-                            <option value="Branded">Branded (Red)</option>
-                          </select>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
+                          <input x-model="newMedicine.supplier" type="text" placeholder="e.g. PharmaCorp"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
-                      </div>
-
-                      <div class="space-y-2">
-                        <label
-                          class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
-                        <input x-model="newMedicine.supplier" type="text" placeholder="e.g. PharmaCorp"
-                          class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                       </div>
 
                       <div class="grid grid-cols-3 gap-6">
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Stock
-                            Units</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Stock Units</label>
                           <input x-model="newMedicine.stock" type="number" placeholder="0"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost
-                            (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
                           <input x-model="newMedicine.costPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling
-                            (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
                           <input x-model="newMedicine.sellingPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
-                      </div>
-
-                      <div class="space-y-2">
-                        <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry
-                          Date</label>
-                        <input x-model="newMedicine.expiryDate" type="date"
-                          class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                       </div>
 
                       <div class="pt-6">
@@ -826,25 +849,21 @@
                       <!-- Product Name and Barcode -->
                       <div class="grid grid-cols-2 gap-6">
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Product
-                            Name</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Product Name</label>
                           <input x-model="newGeneralItem.name" type="text" placeholder="e.g. Surgical Masks"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label
-                            class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Barcode</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Barcode</label>
                           <input x-model="newGeneralItem.barcode" type="text" placeholder="e.g. 5012345678"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                       </div>
 
-                      <!-- Category and Batch # -->
                       <div class="grid grid-cols-2 gap-6">
                         <div class="space-y-2">
-                          <label
-                            class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
                           <select x-model="newGeneralItem.category"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
                             <template x-for="cat in categories">
@@ -853,41 +872,32 @@
                           </select>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch
-                            #</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch #</label>
                           <input x-model="newGeneralItem.batch" type="text" placeholder="e.g. M-551"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                       </div>
 
-                      <!-- Expiry Date and QTY -->
-                      <div class="grid grid-cols-2 gap-6">
+                      <div class="space-y-2">
+                        <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
+                        <input x-model="newGeneralItem.expiryDate" type="date"
+                          class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                      </div>
+
+                      <div class="grid grid-cols-3 gap-6">
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry
-                            Date</label>
-                          <input x-model="newGeneralItem.expiryDate" type="date"
-                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
-                        </div>
-                        <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">QTY
-                            (Units)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">QTY (Units)</label>
                           <input x-model="newGeneralItem.stock" type="number" placeholder="0"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
-                      </div>
-
-                      <!-- Cost and Selling -->
-                      <div class="grid grid-cols-2 gap-6">
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost
-                            (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
                           <input x-model="newGeneralItem.costPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling
-                            (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
                           <input x-model="newGeneralItem.sellingPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
@@ -929,8 +939,9 @@
 
                     <form @submit.prevent="saveEdit" class="space-y-6">
                       <!-- Product/Medicine Name and Barcode/Batch -->
-                      <div class="grid grid-cols-2 gap-6">
-                        <div class="space-y-2">
+                      <!-- Product/Medicine Name and Brand/Barcode -->
+                      <div class="grid grid-cols-3 gap-6">
+                        <div class="col-span-2 space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest"
                             x-text="editingKind === 'Medicine' ? 'Generic Name' : 'Product Name'"></label>
                           <input x-model="editingMedicine.name" type="text"
@@ -938,83 +949,104 @@
                             required>
                         </div>
                         <div x-show="editingKind === 'Medicine'" class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Strength</label>
+                          <div class="relative">
+                            <input x-model="editingMedicine.strength" type="text"
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold pr-12">
+                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase">mg</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-6">
+                        <div x-show="editingKind === 'Medicine'" class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Brand Name</label>
                           <input x-model="editingMedicine.brandName" type="text"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
-                        <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest"
-                            x-text="editingKind === 'Medicine' ? 'Batch #' : 'Barcode'"></label>
-                          <input x-model="editingMedicine[editingKind === 'Medicine' ? 'batch' : 'barcode']" type="text"
+                        <div x-show="editingKind === 'General'" class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Barcode</label>
+                          <input x-model="editingMedicine.barcode" type="text"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
+                          <div class="relative">
+                            <select x-model="editingMedicine.category"
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                              <template x-for="cat in categories">
+                                <option :value="cat" x-text="cat"></option>
+                              </template>
+                            </select>
+                            <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
+                          </div>
                         </div>
                       </div>
 
-                      <!-- Category and Batch/Type -->
-                      <div class="grid grid-cols-2 gap-6">
-                        <div :class="editingKind === 'Medicine' ? 'col-span-1' : 'col-span-2'" class="space-y-2">
-                          <label
-                            class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
-                          <select x-model="editingMedicine.category"
-                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
-                            <template x-for="cat in categories">
-                              <option :value="cat" x-text="cat"></option>
-                            </template>
-                          </select>
+                      <div class="grid grid-cols-2 gap-6" x-show="editingKind === 'Medicine'">
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine Type</label>
+                          <div class="relative">
+                            <select x-model="editingMedicine.type"
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                              <option value="Generic">Generic (Green)</option>
+                              <option value="Branded">Branded (Red)</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
+                          </div>
                         </div>
-                        <div x-show="editingKind === 'Medicine'" class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine
-                            Type</label>
-                          <select x-model="editingMedicine.type"
-                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
-                            <option value="Generic">Generic (Green)</option>
-                            <option value="Branded">Branded (Red)</option>
-                          </select>
-                        </div>
-                        <!-- Show Batch # for General items in a separate field if needed, or use the Barcode field for both. User asked for Batch # for general too. -->
-                        <div x-show="editingKind === 'General'" class="space-y-2 col-span-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch
-                            #</label>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch Number</label>
                           <input x-model="editingMedicine.batch" type="text"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                       </div>
 
-                      <div class="space-y-2">
-                        <label
-                          class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
-                        <input x-model="editingMedicine.supplier" type="text" placeholder="e.g. PharmaCorp"
-                          class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                      <div class="grid grid-cols-2 gap-6" x-show="editingKind === 'Medicine'">
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
+                          <input x-model="editingMedicine.expiryDate" type="date"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
+                          <input x-model="editingMedicine.supplier" type="text"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-6" x-show="editingKind === 'General'">
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch Number</label>
+                          <input x-model="editingMedicine.batch" type="text"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
+                          <input x-model="editingMedicine.supplier" type="text"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
                       </div>
 
                       <div class="grid grid-cols-3 gap-6">
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Stock
-                            Units</label>
-                          <input x-model="editingMedicine.stock" type="number" placeholder="0"
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Stock Units</label>
+                          <input x-model="editingMedicine.stock" type="number"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost
-                            (?)</label>
-                          <input x-model="editingMedicine.costPrice" type="number" step="0.01" placeholder="0.00"
-                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
-                        </div>
-                        <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling
-                            (?)</label>
-                          <input x-model="editingMedicine.sellingPrice" type="number" step="0.01" placeholder="0.00"
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
+                          <input x-model="editingMedicine.costPrice" type="number" step="0.01"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
-                      </div>
-
-                      <div class="space-y-2">
-                        <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry
-                          Date</label>
-                        <input x-model="editingMedicine.expiryDate" type="date"
-                          class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
+                          <input x-model="editingMedicine.sellingPrice" type="number" step="0.01"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
+                            required>
+                        </div>
                       </div>
 
                       <div class="pt-6">
