@@ -16,8 +16,33 @@
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
+    
+    <!-- Auth Utility -->
+    <script src="/src/auth.js"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
-  <body class="antialiased text-slate-900 bg-slate-50 min-h-screen flex items-center justify-center p-4 md:p-8">
+  <body class="antialiased text-slate-900 bg-slate-50 min-h-screen flex items-center justify-center p-4 md:p-8" x-data="{
+    username: '',
+    password: '',
+    errorMessage: '',
+    showPassword: false,
+    loading: false,
+
+    handleLogin() {
+      this.errorMessage = '';
+      this.loading = true;
+      
+      setTimeout(() => {
+        if (window.auth.login(this.username, this.password)) {
+          window.location.href = 'index.html';
+        } else {
+          this.errorMessage = 'Invalid administrative credentials. Please try again.';
+          this.loading = false;
+        }
+      }, 800);
+    }
+  }">
     
     <!-- Decorative Blurs -->
     <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
@@ -71,7 +96,14 @@
           </div>
 
           <!-- Login Form -->
-          <form class="space-y-8" action="index.html">
+          <form class="space-y-8" @submit.prevent="handleLogin()">
+            <!-- Error Message -->
+            <template x-if="errorMessage">
+              <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-3 animate-bento">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-rose-500"></i>
+                <span class="text-xs font-bold text-rose-600" x-text="errorMessage"></span>
+              </div>
+            </template>
             
             <!-- Username -->
             <div class="space-y-2">
@@ -80,7 +112,7 @@
                 <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-300 group-focus-within:text-teal-600 transition-colors">
                   <i data-lucide="user" class="w-5 h-5"></i>
                 </div>
-                <input type="text" id="username" 
+                <input type="text" id="username" x-model="username"
                   class="w-full pl-14 pr-5 py-5 bg-slate-50 border border-slate-200 rounded-3xl text-slate-800 text-[15px] font-bold focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 focus:bg-white transition-all shadow-sm" 
                   placeholder="Username or Email address" required>
               </div>
@@ -96,11 +128,11 @@
                 <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none text-slate-300 group-focus-within:text-teal-600 transition-colors">
                   <i data-lucide="lock" class="w-5 h-5"></i>
                 </div>
-                <input type="password" id="password" 
+                <input :type="showPassword ? 'text' : 'password'" id="password" x-model="password"
                   class="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-200 rounded-3xl text-slate-800 text-[15px] font-bold focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 focus:bg-white transition-all shadow-sm" 
                   placeholder="••••••••••••" required>
-                <button type="button" class="absolute inset-y-0 right-0 pr-5 flex items-center text-slate-300 hover:text-slate-500 focus:outline-none transition-colors">
-                  <i data-lucide="eye" class="w-5 h-5"></i>
+                <button type="button" @click="showPassword = !showPassword" class="absolute inset-y-0 right-0 pr-5 flex items-center text-slate-300 hover:text-teal-600 focus:outline-none transition-colors">
+                  <i :data-lucide="showPassword ? 'eye-off' : 'eye'" class="w-5 h-5"></i>
                 </button>
               </div>
             </div>
@@ -118,9 +150,11 @@
             </div>
 
             <!-- Submit Button -->
-            <button type="submit" class="w-full py-5 bg-slate-900 hover:bg-teal-600 text-white font-black rounded-3xl text-lg transition-all duration-500 shadow-2xl shadow-slate-900/10 hover:shadow-teal-600/30 hover:-translate-y-1 active:translate-y-0 flex items-center justify-center gap-3 group">
-              <span>Access System</span>
-              <i data-lucide="arrow-right" class="w-6 h-6 transition-transform group-hover:translate-x-2"></i>
+            <button type="submit" :disabled="loading" class="w-full py-5 bg-slate-900 hover:bg-teal-600 text-white font-black rounded-3xl text-lg transition-all duration-500 shadow-2xl shadow-slate-900/10 hover:shadow-teal-600/30 hover:-translate-y-1 active:translate-y-0 flex items-center justify-center gap-3 group disabled:opacity-50 disabled:cursor-not-allowed">
+              <span x-text="loading ? 'Authenticating...' : 'Access System'"></span>
+              <template x-if="!loading">
+                <i data-lucide="arrow-right" class="w-6 h-6 transition-transform group-hover:translate-x-2"></i>
+              </template>
             </button>
           </form>
 

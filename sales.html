@@ -16,6 +16,9 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     
+    <!-- Auth Utility -->
+    <script src="/src/auth.js"></script>
+    
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
@@ -290,12 +293,12 @@
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
           <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
           
-          <a href="index.html" class="nav-link w-full">
+          <a href="index.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
             <i data-lucide="layout-grid" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Dashboard</span>
           </a>
 
-          <a href="inventory.html" class="nav-link w-full">
+          <a href="inventory.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
             <i data-lucide="package" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Inventory</span>
           </a>
@@ -316,6 +319,10 @@
             <i data-lucide="file-text" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Reports</span>
           </a>
+          <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
+            <i data-lucide="users" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Accounts</span>
+          </a>
 
 
 
@@ -323,7 +330,7 @@
 
         <!-- Logout -->
         <div class="p-6 mt-auto">
-          <button class="w-full flex items-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
+          <button @click="window.auth.logout()" class="w-full flex items-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
             <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i>
             <span>Logout Account</span>
           </button>

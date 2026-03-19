@@ -21,6 +21,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <!-- App Scripts -->
+    <script src="/src/auth.js"></script>
     <script type="module" src="/src/dashboard.js"></script>
     <script type="module" src="/src/main.js"></script>
     
@@ -171,16 +172,17 @@
         </div>
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
           <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
-          <a href="index.html" class="nav-link w-full active"><i data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
-          <a href="inventory.html" class="nav-link w-full"><i data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
+          <a href="index.html" class="nav-link w-full active" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
+          <a href="inventory.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
           <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span class="font-semibold text-[15px]">POS Terminal</span></a>
           <a href="sales.html" class="nav-link w-full"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Sales History</span></a>
           <a href="reports.html" class="nav-link w-full"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
+          <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
         </nav>
         <div class="p-6 mt-auto">
-          <a href="login.html" class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-[2rem] transition-all duration-300 font-bold text-sm group">
+          <button @click="window.auth.logout()" class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-[2rem] transition-all duration-300 font-bold text-sm group">
             <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i><span>Logout Account</span>
-          </a>
+          </button>
         </div>
       </div>
     </aside>
