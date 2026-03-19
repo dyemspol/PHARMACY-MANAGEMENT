@@ -40,6 +40,24 @@
           transform: translateY(0);
         }
       }
+
+      /* Print Styles */
+      @media print {
+        body * { visibility: hidden; }
+        #receipt-print, #receipt-print * { visibility: visible; }
+        #receipt-print {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 80mm;
+          padding: 20px;
+          font-family: 'Courier New', Courier, monospace;
+          background: white;
+          color: black;
+          text-transform: uppercase;
+        }
+        .no-print { display: none !important; }
+      }
     </style>
   </head>
   <body class="antialiased text-slate-900 bg-[#F8FAFC]" x-data="{ 
@@ -77,7 +95,7 @@
           existing.quantity++;
         }
       } else if (stockNum > 0) {
-        this.cart.push({ ...medicine, quantity: 1 });
+        this.cart.push({ ...medicine, quantity: 1, isSenior: false });
       }
     },
 
@@ -85,18 +103,46 @@
       this.cart = this.cart.filter(item => item.id !== id);
     },
 
+    getItemPrice(item) {
+      const basePrice = window.db.parseCurrency(item.sellingPrice);
+      return item.isSenior ? basePrice * 0.8 : basePrice;
+    },
+
+    getDiscountAmount(item) {
+      const basePrice = window.db.parseCurrency(item.sellingPrice);
+      return item.isSenior ? basePrice * 0.2 : 0;
+    },
+
+    getTotalDiscount() {
+      return this.cart.reduce((sum, item) => sum + (this.getDiscountAmount(item) * item.quantity), 0);
+    },
+
     getTotal() {
       return this.cart.reduce((sum, item) => {
-        const priceValue = window.db.parseCurrency(item.sellingPrice);
-        return sum + (priceValue * item.quantity);
+        return sum + (this.getItemPrice(item) * item.quantity);
       }, 0);
     },
 
     openPaymentModal() {
       if (this.cart.length === 0) return;
+      this.printReceipt();
       this.cashAmount = '';
       this.changeAmount = 0;
       this.paymentModalOpen = true;
+    },
+
+    printReceipt() {
+      // Small delay to ensure Alpine has rendered any last-minute price changes if any
+      setTimeout(() => {
+        const printContent = document.getElementById('receipt-print');
+        if (printContent) {
+          // Show briefly for printing
+          printContent.style.display = 'block';
+          window.print();
+          // Hide again
+          printContent.style.display = 'none';
+        }
+      }, 50);
     },
 
     calculateChange() {
@@ -143,7 +189,8 @@
           unitsCount: this.cart.reduce((acc, curr) => acc + curr.quantity, 0),
           total: '₱' + this.getTotal().toFixed(2),
           totalAmount: this.getTotal(),
-          discountApplied: 0,
+          discountApplied: this.getTotalDiscount(),
+          isSeniorDiscountApplied: this.getTotalDiscount() > 0,
           staff: 'System Admin',
           transactionId: this.lastTransactionId,
           createdAt: new Date()
@@ -403,7 +450,19 @@
                 <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center font-bold text-teal-600 border border-slate-100" x-text="item.name.charAt(0)"></div>
                 <div class="flex-1 min-w-0">
                   <h4 class="text-sm font-bold text-slate-800 truncate" x-text="item.name"></h4>
-                  <p class="text-xs font-semibold text-slate-500" x-text="item.sellingPrice"></p>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-slate-500" :class="item.isSenior ? 'line-through opacity-50' : ''" x-text="item.sellingPrice"></span>
+                    <template x-if="item.isSenior">
+                      <span class="text-xs font-bold text-teal-600" x-text="'₱' + getItemPrice(item).toFixed(2)"></span>
+                    </template>
+                  </div>
+                  <!-- Senior Toggle -->
+                  <button @click="item.isSenior = !item.isSenior" 
+                          :class="item.isSenior ? 'bg-teal-50 text-teal-600 border-teal-200' : 'bg-slate-50 text-slate-400 border-slate-100'"
+                          class="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-tighter transition-all hover:scale-105">
+                    <i data-lucide="user-check" class="w-2.5 h-2.5"></i>
+                    <span x-text="item.isSenior ? 'Senior Applied' : 'Apply Senior'"></span>
+                  </button>
                 </div>
                 <div class="flex items-center gap-2">
                   <button @click="if(item.quantity > 1) item.quantity--; else removeFromCart(item.id)" class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:border-rose-500 hover:text-rose-500 transition-colors">
@@ -423,8 +482,14 @@
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Subtotal</span>
-                <span class="text-lg font-bold text-slate-800">₱ <span x-text="getTotal().toFixed(2)"></span></span>
+                <span class="text-lg font-bold text-slate-800">₱ <span x-text="(getTotal() + getTotalDiscount()).toFixed(2)"></span></span>
               </div>
+              <template x-if="getTotalDiscount() > 0">
+                <div class="flex items-center justify-between text-rose-500">
+                  <span class="text-xs font-bold uppercase tracking-widest">Senior Discount</span>
+                  <span class="text-lg font-bold">- ₱ <span x-text="getTotalDiscount().toFixed(2)"></span></span>
+                </div>
+              </template>
               <div class="flex items-center justify-between pt-4 border-t border-dashed border-slate-200">
                 <span class="text-sm font-black text-slate-800 uppercase tracking-wider">Net Total</span>
                 <span class="text-3xl font-black text-teal-600 tracking-tight">₱ <span x-text="getTotal().toFixed(2)"></span></span>
@@ -480,6 +545,45 @@
     <div x-show="showSuccess" x-transition.scale.90 x-cloak class="fixed bottom-10 left-1/2 -translate-x-1/2 z-110 bg-emerald-600 text-white px-8 py-4 rounded-4xl shadow-2xl flex items-center gap-4">
        <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><i data-lucide="check" class="w-6 h-6"></i></div>
        <span class="font-bold">Transaction Completed Successfully!</span>
+    </div>
+
+    <!-- Receipt Print Template (Hidden) -->
+    <div id="receipt-print" class="hidden" style="display: none;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">DavaoDeOro</h2>
+        <p style="margin: 5px 0;">Pharmacy Management</p>
+        <p style="font-size: 10px;" x-text="new Date().toLocaleString()"></p>
+      </div>
+      
+      <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 10px 0; margin-bottom: 10px;">
+        <template x-for="item in cart" :key="item.id">
+          <div style="margin-bottom: 5px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-weight: bold;" x-text="item.name"></span>
+              <span x-text="'₱' + (getItemPrice(item) * item.quantity).toFixed(2)"></span>
+            </div>
+            <div style="font-size: 10px; display: flex; justify-content: space-between;">
+              <span x-text="item.quantity + ' x ₱' + getItemPrice(item).toFixed(2)"></span>
+              <template x-if="item.isSenior">
+                <span style="font-style: italic;">(Senior 20% Off)</span>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <div style="text-align: right;">
+        <p>Subtotal: <span x-text="'₱' + (getTotal() + getTotalDiscount()).toFixed(2)"></span></p>
+        <template x-if="getTotalDiscount() > 0">
+          <p>Discount: <span x-text="'- ₱' + getTotalDiscount().toFixed(2)"></span></p>
+        </template>
+        <h3 style="margin-top: 5px;">TOTAL: <span x-text="'₱' + getTotal().toFixed(2)"></span></h3>
+      </div>
+
+      <div style="text-align: center; margin-top: 30px; font-size: 10px;">
+        <p>Thank you for choosing DavaoDeOro!</p>
+        <p>Stay Healthy!</p>
+      </div>
     </div>
 
     <script type="module" src="/src/main.js"></script>
