@@ -42,6 +42,8 @@
           inventoryData: [],
           totalRevenue: 0,
           totalTransactions: 0,
+          totalDiscounts: 0,
+          actualRevenue: 0,
           averageTransaction: 0,
           netProfit: 0,
           topSelling: [],
@@ -174,12 +176,19 @@
               return saleDate >= start && saleDate <= end;
             });
             this.totalTransactions = this.salesData.length;
-            this.totalRevenue = this.salesData.reduce((sum, sale) => {
-              let total = sale.total;
-                total = window.db.parseCurrency(total);
-              return sum + total;
-            }, 0);
-            this.averageTransaction = this.totalTransactions > 0 ? (this.totalRevenue / this.totalTransactions) : 0;
+            const revenues = this.salesData.reduce((acc, sale) => {
+              const paid = window.db.parseCurrency(sale.total);
+              const disc = parseFloat(sale.discountApplied) || 0;
+              acc.gross += (paid + disc);
+              acc.disc += disc;
+              acc.paid += paid;
+              return acc;
+            }, { gross: 0, disc: 0, paid: 0 });
+
+            this.totalRevenue = revenues.gross;
+            this.totalDiscounts = revenues.disc;
+            this.actualRevenue = revenues.paid;
+            this.averageTransaction = this.totalTransactions > 0 ? (this.actualRevenue / this.totalTransactions) : 0;
             let exactCost = 0;
             this.salesData.forEach(s => {
               const items = Array.isArray(s.items) ? s.items : (s.cart || []);
@@ -193,7 +202,7 @@
                 exactCost += (cost > 0 ? (cost * qty) : (price * qty * 0.7));
               });
             });
-            this.netProfit = this.totalRevenue - exactCost;
+            this.netProfit = this.actualRevenue - exactCost;
           },
 
           calculateTopSelling() {
@@ -407,41 +416,54 @@
 
         <!-- Step 2: Metrics Visualization -->
         <div class="space-y-8">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-bento">
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 animate-bento">
               <div class="p-6 bg-emerald-50 rounded-4xl border border-emerald-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-emerald-500/5">
-                <div>
-                  <p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Revenue</p>
-                  <h3 class="text-2xl font-black text-emerald-900" x-text="'₱' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                <div class="overflow-hidden">
+                  <p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 truncate">Total Revenue</p>
+                  <h3 class="text-xl font-black text-emerald-900 truncate" x-text="'₱' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
                 </div>
-                <div class="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-600">
-                  <i data-lucide="dollar-sign" class="w-6 h-6"></i>
+                <div class="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-600 shrink-0">
+                  <i data-lucide="line-chart" class="w-5 h-5"></i>
                 </div>
               </div>
+
+              <div class="p-6 bg-rose-50 rounded-4xl border border-rose-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-rose-500/5">
+                <div class="overflow-hidden">
+                  <p class="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1 truncate">Discounts Given</p>
+                  <h3 class="text-xl font-black text-rose-900 truncate" x-text="'₱' + totalDiscounts.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                </div>
+                <div class="w-12 h-12 bg-rose-500/10 rounded-2xl flex items-center justify-center text-rose-600 shrink-0">
+                  <i data-lucide="tag" class="w-5 h-5"></i>
+                </div>
+              </div>
+
               <div class="p-6 bg-blue-50 rounded-4xl border border-blue-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-blue-500/5">
-                <div>
-                  <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Transactions</p>
-                  <h3 class="text-2xl font-black text-blue-900" x-text="totalTransactions"></h3>
+                <div class="overflow-hidden">
+                  <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1 truncate">Transactions</p>
+                  <h3 class="text-xl font-black text-blue-900 truncate" x-text="totalTransactions"></h3>
                 </div>
-                <div class="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600">
-                  <i data-lucide="file-text" class="w-6 h-6"></i>
+                <div class="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600 shrink-0">
+                  <i data-lucide="shopping-bag" class="w-5 h-5"></i>
                 </div>
               </div>
+
               <div class="p-6 bg-purple-50 rounded-4xl border border-purple-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-purple-500/5">
-                <div>
-                  <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1">Average Order</p>
-                  <h3 class="text-2xl font-black text-purple-900" x-text="'₱' + averageTransaction.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                <div class="overflow-hidden">
+                  <p class="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-1 truncate">Actual Cash (Net)</p>
+                  <h3 class="text-xl font-black text-purple-900 truncate" x-text="'₱' + actualRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
                 </div>
-                <div class="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-600">
-                  <i data-lucide="trending-up" class="w-6 h-6"></i>
+                <div class="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center text-purple-600 shrink-0">
+                  <i data-lucide="banknote" class="w-5 h-5"></i>
                 </div>
               </div>
+
               <div class="p-6 bg-amber-50 rounded-4xl border border-amber-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-amber-500/5">
-                <div>
-                  <p class="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Net Profit (Est.)</p>
-                  <h3 class="text-2xl font-black text-amber-900" x-text="'₱' + netProfit.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                <div class="overflow-hidden">
+                  <p class="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1 truncate">Total Profit</p>
+                  <h3 class="text-xl font-black text-amber-900 truncate" x-text="'₱' + netProfit.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
                 </div>
-                <div class="w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-600">
-                  <i data-lucide="banknote" class="w-6 h-6"></i>
+                <div class="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-600 shrink-0">
+                  <i data-lucide="coins" class="w-5 h-5"></i>
                 </div>
               </div>
             </div>

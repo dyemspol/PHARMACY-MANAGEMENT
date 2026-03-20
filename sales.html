@@ -37,6 +37,8 @@
                     this.salesData = sales.map(data => {
                         const itemsArray = Array.isArray(data.items) ? data.items : (data.cart || []);
                         const count = data.itemsCount || data.items || itemsArray.length;
+                        const disc = parseFloat(data.discountApplied) || 0;
+                        const net = data.totalAmount || 0;
                         return {
                             id: (data.transactionId || data.id).substring(0, 10).toUpperCase(),
                             rawId: data.id,
@@ -44,7 +46,9 @@
                             time: data.time,
                             items: `${count} item(s)`,
                             units: `${data.unitsCount || data.units || count} units`,
-                            total: data.total || ('₱' + (data.totalAmount || 0).toFixed(2)),
+                            discount: '₱' + disc.toFixed(2),
+                            subtotal: '₱' + (net + disc).toFixed(2),
+                            total: data.total || ('₱' + net.toFixed(2)),
                             cart: itemsArray.map(i => ({
                                 name: i.name,
                                 category: i.category || 'General',
@@ -94,7 +98,9 @@
     selectedSale: {
       id: '',
       date: '',
-      total: '',
+      subtotal: '₱0.00',
+      discount: '₱0.00',
+      total: '₱0.00',
       itemsCount: 0,
       items: []
     },
@@ -169,8 +175,12 @@
               <p class="text-sm font-bold text-slate-700" x-text="selectedSale.id"></p>
             </div>
              <div>
-              <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Total Amount</p>
-              <p class="text-teal-600 font-black text-2xl tracking-tighter" x-text="selectedSale.total"></p>
+              <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Subtotal (Original)</p>
+              <p class="text-sm font-bold text-slate-500 line-through" x-text="selectedSale.subtotal"></p>
+            </div>
+             <div>
+              <p class="text-[11px] font-extrabold text-rose-500 uppercase tracking-widest mb-1">Discount Applied</p>
+              <p class="text-rose-600 font-black text-xl tracking-tight" x-text="'- ' + selectedSale.discount"></p>
             </div>
           </section>
           
@@ -217,9 +227,12 @@
           </div>
         </section>
 
-        <section class="flex justify-between items-center p-6 bg-slate-50 rounded-3xl border border-slate-100">
-           <p class="text-slate-500 font-bold text-sm">Grand Total:</p>
-            <p class="font-black text-2xl text-teal-600 tracking-tighter" x-text="selectedSale.total"></p>
+        <section class="flex justify-between items-center p-6 bg-emerald-50 rounded-3xl border border-emerald-100 shadow-sm shadow-emerald-500/5">
+           <div>
+             <p class="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Grand Total (Paid)</p>
+             <p class="text-slate-400 text-[10px] font-bold">Successfully Received</p>
+           </div>
+           <p class="font-black text-3xl text-emerald-600 tracking-tighter" x-text="selectedSale.total"></p>
         </section>
         
         <hr class="my-8 border-slate-100">
@@ -381,10 +394,11 @@
               <thead>
                 <tr class="bg-slate-50/50">
                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Transaction ID</th>
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Date & Timestamp</th>
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Timestamp</th>
                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Items Detail</th>
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Total Amount</th>
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Operations</th>
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Discount</th>
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Final Total</th>
+                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100/50">
@@ -420,13 +434,16 @@
                         <span class="text-[10px] text-teal-600 font-bold uppercase" x-text="sale.units"></span>
                       </div>
                     </td>
-                    <td class="px-8 py-6">
+                    <td class="px-8 py-6 text-right">
+                      <span class="text-xs font-bold text-rose-500" x-text="sale.discount"></span>
+                    </td>
+                    <td class="px-8 py-6 text-right">
                       <span class="text-lg font-black text-teal-600 tracking-tight" x-text="sale.total"></span>
                     </td>
                     <td class="px-8 py-6">
-                      <div class="flex items-center gap-3">
+                      <div class="flex items-center justify-center gap-3">
                         <button 
-                          @click="selectedSale = { id: sale.id, date: sale.date + ' ' + sale.time, total: sale.total, itemsCount: parseInt(sale.items), items: sale.cart }; saleDetailsModal = true"
+                          @click="selectedSale = { id: sale.id, date: sale.date + ' ' + sale.time, total: sale.total, discount: sale.discount, subtotal: sale.subtotal, itemsCount: parseInt(sale.items), items: sale.cart }; saleDetailsModal = true"
                           class="w-10 h-10 flex items-center justify-center bg-teal-50 text-teal-600 rounded-xl hover:bg-teal-600 hover:text-white transition-all shadow-sm cursor-pointer"
                         >
                           <i data-lucide="eye" class="w-4 h-4 pointer-events-none"></i>

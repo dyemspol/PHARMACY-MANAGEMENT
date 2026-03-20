@@ -66,12 +66,12 @@
         color: #0d9488;
       }
       .header-icon {
-        width: 44px;
-        height: 44px;
+        width: 52px;
+        height: 52px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 14px;
+        border-radius: 16px;
         background: white;
         border: 1px solid #f1f5f9;
         transition: all 0.2s;
@@ -85,10 +85,10 @@
       }
       .badge {
         position: absolute;
-        top: -6px;
-        right: -6px;
-        min-width: 18px;
-        height: 18px;
+        top: -8px;
+        right: -8px;
+        min-width: 20px;
+        height: 20px;
         padding: 0 5px;
         background: #ef4444;
         color: white;
@@ -103,17 +103,17 @@
       .filter-bar {
         background: white;
         border-radius: 100px;
-        padding: 8px;
+        padding: 10px;
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
         border: 1px solid #f1f5f9;
         box-shadow: 0 4px 15px rgba(0,0,0,0.03);
       }
       .filter-btn {
-        padding: 10px 24px;
+        padding: 12px 28px;
         border-radius: 100px;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.1em;
@@ -127,9 +127,9 @@
       }
       .filter-divider {
         width: 1px;
-        height: 24px;
+        height: 28px;
         background: #f1f5f9;
-        margin: 0 8px;
+        margin: 0 10px;
       }
       input[type="date"]::-webkit-calendar-picker-indicator {
         opacity: 0;
@@ -203,65 +203,35 @@
         </div>
 
         <div class="flex items-center gap-3">
-          <div class="hidden lg:flex items-center gap-3 bg-white/60 border border-slate-100/50 px-4 py-2 rounded-2xl mr-4">
-            <i data-lucide="user-circle" class="w-4 h-4 text-slate-400"></i>
-            <select x-model="selectedEmployee" @change="applyAllFilters()" class="bg-transparent border-none outline-none font-bold text-xs text-slate-800 cursor-pointer">
-              <option value="All">All Staff</option>
-              <template x-for="emp in employeesList" :key="emp"><option :value="emp" x-text="emp"></option></template>
+          <div class="hidden lg:flex items-center gap-4 bg-white/60 border border-slate-100/50 px-6 py-4 rounded-3xl mr-6 transition-all hover:bg-white hover:shadow-xl hover:shadow-teal-500/5">
+            <i data-lucide="user-circle" class="w-5 h-5 text-teal-600"></i>
+            <select x-model="selectedEmployee" @change="applyAllFilters()" class="bg-transparent border-none outline-none font-black text-sm text-slate-800 cursor-pointer">
+              <optgroup label="Staff Selection">
+                <option value="All">All Staff Members</option>
+                <template x-for="emp in employeesList" :key="emp"><option :value="emp" x-text="emp"></option></template>
+              </optgroup>
             </select>
           </div>
 
           <button @click="openModal('expiring')" class="header-icon group" title="Expiring Soon">
-            <i data-lucide="clock" class="w-5 h-5 text-orange-500 group-hover:scale-110"></i>
+            <i data-lucide="clock" class="w-6 h-6 text-amber-500 group-hover:scale-110"></i>
             <span class="badge" x-show="stats.expiringCount > 0" x-text="stats.expiringCount"></span>
           </button>
           <button @click="openModal('lowStock')" class="header-icon group" title="Low Stock">
-            <i data-lucide="package-search" class="w-5 h-5 text-rose-500 group-hover:scale-110 transition-transform"></i>
+            <i data-lucide="package-search" class="w-6 h-6 text-red-600 group-hover:scale-110 transition-transform"></i>
             <span class="badge" x-show="stats.lowStockCount > 0" x-text="stats.lowStockCount"></span>
           </button>
-          <button class="header-icon group"><i data-lucide="bell" class="w-5 h-5 text-slate-600"></i></button>
         </div>
       </header>
 
       <div class="p-8 space-y-8" @click="refreshVisuals()">
-        <!-- Expiry Alert Banner -->
-        <template x-if="stats.expiringCount > 0">
-          <div class="bg-amber-50 border border-amber-200 rounded-[2rem] p-6 flex items-center justify-between animate-pulse">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-amber-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
-              </div>
-              <div>
-                <h3 class="text-amber-900 font-black tracking-tight">Expiring Inventory Alert</h3>
-                <p class="text-sm text-amber-700 font-medium">There are <span class="font-bold" x-text="stats.expiringCount"></span> items expiring within the next 6 months.</p>
-              </div>
-            </div>
-            <a href="inventory.html" class="px-6 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-all shadow-md">Review Stock</a>
-          </div>
-        </template>
 
-        <!-- Low Stock Alert Banner -->
-        <template x-if="stats.lowStockCount > 0">
-          <div class="bg-rose-50 border border-rose-200 rounded-[2rem] p-6 flex items-center justify-between mb-4">
-            <div class="flex items-center gap-4">
-              <div class="w-12 h-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-rose-500/20">
-                <i data-lucide="package" class="w-6 h-6"></i>
-              </div>
-              <div>
-                <h3 class="text-rose-900 font-black tracking-tight">Low Stock Alert (50 Units Threshold)</h3>
-                <p class="text-sm text-rose-700 font-medium">There are <span class="font-bold" x-text="stats.lowStockCount"></span> items with 50 units or fewer remaining.</p>
-              </div>
-            </div>
-            <a href="inventory.html" class="px-6 py-3 bg-rose-500 text-white font-bold rounded-xl hover:bg-rose-600 transition-all shadow-md">Restock Now</a>
-          </div>
-        </template>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           <!-- Gross Sales -->
           <div class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
             <div class="flex items-center justify-between mb-4">
               <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i data-lucide="trending-up" class="w-5 h-5"></i></div>
-              <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Revenue</span>
+              <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Total</span>
             </div>
             <div>
               <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Gross Sales</h3>
@@ -269,11 +239,23 @@
             </div>
           </div>
 
+          <!-- Discounts Applied -->
+          <div class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
+            <div class="flex items-center justify-between mb-4">
+              <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i data-lucide="badge-percent" class="w-5 h-5"></i></div>
+              <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Saved</span>
+            </div>
+            <div>
+              <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Total Discount</h3>
+              <p class="text-3xl font-extrabold text-white tracking-tight mt-1" x-text="'₱' + formatNum(stats.discountTotal)"></p>
+            </div>
+          </div>
+
           <!-- Net Sales -->
           <div class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
             <div class="flex items-center justify-between mb-4">
               <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i data-lucide="shopping-bag" class="w-5 h-5"></i></div>
-              <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Volume</span>
+              <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Actual</span>
             </div>
             <div>
               <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Net Sales</h3>
@@ -302,9 +284,10 @@
             <div>
               <p class="text-sm font-bold text-teal-50 line-clamp-1" x-text="stats.topMovingProduct || 'No Sales'"></p>
               <p class="text-2xl font-black mt-1" x-text="stats.topMovingQty + ' units'"></p>
-              <p class="text-[10px] text-teal-100 mt-1 uppercase font-bold tracking-widest">Selected Period</p>
+              <p class="text-[10px] text-teal-100 mt-1 uppercase font-bold tracking-widest">Best Selling</p>
             </div>
           </div>
+        </div>
         </div>
 
         <div class="grid grid-cols-1 gap-8">
@@ -374,17 +357,29 @@
                 <table class="w-full">
                     <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b">
                         <th class="text-left pb-4">Product</th>
+                        <th class="text-center pb-4">Batch</th>
                         <th class="text-center pb-4">Stock</th>
-                        <th class="text-right pb-4">Expiry</th>
+                        <th class="text-center pb-4">Expiry</th>
+                        <th class="text-right pb-4">Action</th>
                     </tr>
                     <template x-for="item in criticalItems" :key="item.id">
                         <tr class="border-b border-slate-50">
-                            <td class="py-4 font-bold text-slate-700" x-text="item.name"></td>
-                            <td class="py-4 text-center font-bold text-orange-500" x-text="item.quantity"></td>
-                            <td class="py-4 text-right text-slate-500 text-xs font-bold" x-text="item.expiryDate"></td>
+                            <td class="py-4 font-bold text-slate-700">
+                                <span x-text="item.name"></span>
+                            </td>
+                            <td class="py-4 text-center">
+                                <span class="bg-slate-50 text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-100 uppercase" x-text="item.batch || 'N/A'"></span>
+                            </td>
+                            <td class="py-4 text-center">
+                                <span :class="window.db.parseStock(item.stock) <= 50 ? 'text-rose-500' : 'text-orange-500'" class="font-black" x-text="item.stock"></span>
+                            </td>
+                            <td class="py-4 text-center text-slate-500 text-xs font-bold" x-text="item.expiryDate"></td>
+                            <td class="py-4 text-right">
+                                <a href="inventory.html" class="text-[10px] font-black underline uppercase text-slate-900 hover:text-amber-600 transition-colors">Restock Now</a>
+                            </td>
                         </tr>
                     </template>
-                    <template x-if="criticalItems.length === 0"><tr><td colspan="3" class="py-10 text-center text-slate-400">No items expiring soon</td></tr></template>
+                    <template x-if="criticalItems.length === 0"><tr><td colspan="5" class="py-10 text-center text-slate-400">No items expiring soon</td></tr></template>
                 </table>
             </div>
         </div>
@@ -407,8 +402,8 @@
                     <template x-for="item in lowStockItems" :key="item.id">
                         <tr class="border-b border-slate-50">
                             <td class="py-4 font-bold text-slate-700" x-text="item.name"></td>
-                            <td class="py-4 text-center font-bold text-rose-500" x-text="item.quantity"></td>
-                            <td class="py-4 text-right"><a href="inventory.html" class="text-[10px] font-black underline uppercase text-slate-900">Restock Now</a></td>
+                            <td class="py-4 text-center font-bold text-rose-500" x-text="item.stock"></td>
+                            <td class="py-4 text-right"><a href="inventory.html" class="text-[10px] font-black underline uppercase text-slate-900 hover:text-rose-500 transition-colors">Restock Now</a></td>
                         </tr>
                     </template>
                     <template x-if="lowStockItems.length === 0"><tr><td colspan="3" class="py-10 text-center text-slate-400">All stock levels healthy</td></tr></template>

@@ -14,8 +14,9 @@ function dashboardApp() {
     showLowStockModal: false,
     isLoading: true,
     stats: {
-      grossSales: 0,
-      netSales: 0,
+      grossSales: 0,      // Before deductions
+      discountTotal: 0,   // Total savings given
+      netSales: 0,        // After deductions
       grossProfit: 0,
       topMovingProduct: '',
       topMovingQty: 0,
@@ -156,26 +157,31 @@ function dashboardApp() {
     },
 
     calculateSalesStats() {
-      this.stats.grossSales = this.sales.reduce((sum, s) => {
-        const amt = s.totalAmount || window.db.parseCurrency(s.total);
-        return sum + amt;
-      }, 0);
-      
-      this.stats.netSales = this.sales.reduce((sum, s) => {
-        const amt = s.totalAmount || window.db.parseCurrency(s.total);
-        return sum + (amt - (parseFloat(s.discountApplied) || 0));
-      }, 0);
+      let totals = this.sales.reduce((acc, s) => {
+        const paid = s.totalAmount || window.db.parseCurrency(s.total);
+        const disc = parseFloat(s.discountApplied) || 0;
+        acc.net += paid;
+        acc.disc += disc;
+        return acc;
+      }, { net: 0, disc: 0 });
 
+      this.stats.netSales = totals.net;
+      this.stats.discountTotal = totals.disc;
+      this.stats.grossSales = totals.net + totals.disc;
+      
       this.stats.grossProfit = this.sales.reduce((sum, s) => {
         let margin = 0;
         if (Array.isArray(s.items)) {
           s.items.forEach(i => {
             const price = i.price || window.db.parseCurrency(i.sellingPrice);
+            // Actual profit should be based on what was paid (price - cost) - (item-level discount if any)
+            // But since discount is transaction-wide in this schema, we calculate item profit normally
             const cost = i.costPrice || window.db.parseCurrency(i.buyingPrice) || (price * 0.7);
             margin += (price - cost) * (i.quantityPurchased || i.quantity || 1);
           });
+          // Subtract the transaction discount from the total margin to get true profit
+          margin -= (parseFloat(s.discountApplied) || 0);
         } else {
-          // Fallback if no items array
           const total = s.totalAmount || window.db.parseCurrency(s.total);
           margin = total * 0.3;
         }
