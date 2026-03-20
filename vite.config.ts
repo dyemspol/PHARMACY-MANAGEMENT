@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [
@@ -36,4 +37,17 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        login: resolve(__dirname, 'login.html'),
+        inventory: resolve(__dirname, 'inventory.html'),
+        pos: resolve(__dirname, 'POST_terminal.html'),
+        sales: resolve(__dirname, 'sales.html'),
+        reports: resolve(__dirname, 'reports.html'),
+        accounts: resolve(__dirname, 'accounts.html'),
+      }
+    }
+  }
 })

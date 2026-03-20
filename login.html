@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" href="/src/img/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0d9488" />
     <title>Login | DavaoDeOro Pharmacy</title>
@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     
     <!-- Auth Utility -->
-    <script src="/src/auth.js"></script>
+    <script type="module" src="/src/auth.js"></script>
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
@@ -29,18 +29,22 @@
     showPassword: false,
     loading: false,
 
-    handleLogin() {
+    async handleLogin() {
       this.errorMessage = '';
       this.loading = true;
       
-      setTimeout(() => {
-        if (window.auth.login(this.username, this.password)) {
+      try {
+        const success = await window.auth.login(this.username, this.password);
+        if (success) {
           window.location.href = 'index.html';
         } else {
           this.errorMessage = 'Invalid administrative credentials. Please try again.';
           this.loading = false;
         }
-      }, 800);
+      } catch (error) {
+        this.errorMessage = 'An error occurred during login. Please try again.';
+        this.loading = false;
+      }
     }
   }">
     
@@ -65,7 +69,7 @@
           <div class="relative inline-block group">
             <div class="absolute inset-0 bg-white/20 blur-3xl rounded-full opacity-60 group-hover:opacity-100 transition-opacity"></div>
             <div class="relative z-10 w-48 h-48 md:w-64 md:h-64 bg-white/10 backdrop-blur-xl rounded-[2.5rem] p-6 border border-white/20 shadow-2xl transition-transform duration-700 group-hover:scale-105 group-hover:rotate-1">
-                <img src="/src/img/logo.png" alt="DavaoDeOro Pharmacy Logo" class="w-full h-full object-contain filter drop-shadow-2xl">
+                <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-contain filter drop-shadow-2xl">
             </div>
           </div>
           <div class="space-y-4">

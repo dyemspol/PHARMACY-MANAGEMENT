@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" href="/src/img/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Account Management | DavaoDeOro</title>
     <link href="/src/style.css" rel="stylesheet" />
@@ -16,9 +16,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     
-    <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script src="/src/auth.js"></script>
+    <script type="module" src="/src/auth.js"></script>
 
     <style>
         [x-cloak] { display: none !important; }
@@ -67,11 +65,19 @@
         role: 'employee',
         name: ''
     },
-    init() {
-        this.loadAccounts();
+    async init() {
+        await this.loadAccounts();
     },
-    loadAccounts() {
-        this.accounts = window.auth.getUsers();
+    async loadAccounts() {
+        try {
+            this.accounts = await window.auth.getUsers();
+            if (this.accounts.length === 0) {
+                console.warn('Accounts: No accounts found in Firestore.');
+            }
+        } catch (error) {
+            console.error('Accounts: Error loading list:', error);
+            alert('Failed to load accounts. Please ensure you are connected to the internet.');
+        }
     },
     async createAccount() {
         if (!this.newAccount.username || !this.newAccount.password || !this.newAccount.name) {
@@ -79,35 +85,29 @@
             return;
         }
         
-        const users = window.auth.getUsers();
-        if (users.find(u => u.username === this.newAccount.username)) {
-            alert('Username already exists');
-            return;
+        try {
+            await window.auth.saveUser(this.newAccount);
+            await this.loadAccounts();
+            this.showCreateModal = false;
+            this.newAccount = { username: '', password: '', role: 'employee', name: '' };
+            setTimeout(() => lucide.createIcons(), 50);
+        } catch (error) {
+            alert(error.message || 'Error creating account');
         }
-
-        users.push({
-            ...this.newAccount,
-            createdAt: new Date().toISOString()
-        });
-        
-        window.auth.saveUsers(users);
-        this.loadAccounts();
-        this.showCreateModal = false;
-        this.newAccount = { username: '', password: '', role: 'employee', name: '' };
-        
-        setTimeout(() => lucide.createIcons(), 50);
     },
-    deleteAccount(username) {
+    async deleteAccount(username) {
         if (username === 'admin') {
             alert('Cannot delete primary administrator account');
             return;
         }
         if (confirm(`Are you sure you want to delete account: ${username}?`)) {
-            let users = window.auth.getUsers();
-            users = users.filter(u => u.username !== username);
-            window.auth.saveUsers(users);
-            this.loadAccounts();
-            setTimeout(() => lucide.createIcons(), 50);
+            try {
+                await window.auth.deleteUser(username);
+                await this.loadAccounts();
+                setTimeout(() => lucide.createIcons(), 50);
+            } catch (error) {
+                alert('Error deleting account');
+            }
         }
     }
 }">
@@ -294,5 +294,6 @@
       // Initial lucide call
       lucide.createIcons();
     </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
 </html>

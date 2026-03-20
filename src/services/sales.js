@@ -17,6 +17,7 @@ export const fetchSalesData = (callback) => {
     callback(sales);
   }, (error) => {
     console.error("Error fetching sales data: ", error);
+    alert("Firestore Error: " + error.message + ". Please refresh the page.");
   });
   return unsubscribe; 
 };

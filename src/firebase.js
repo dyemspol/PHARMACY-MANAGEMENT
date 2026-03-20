@@ -3,7 +3,6 @@ import { getFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -13,6 +12,18 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+
+// Validate configuration
+const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'appId'];
+const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
+
+if (missingKeys.length > 0) {
+  const errorMsg = 'Firebase Configuration Error: Missing ' + missingKeys.join(', ');
+  console.error(errorMsg);
+  alert(errorMsg + '\n\nSync between devices will NOT work. Please check your .env file and rebuild the app using "npm run build".');
+} else {
+  console.log('Firebase initialized with Project ID:', firebaseConfig.projectId);
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
