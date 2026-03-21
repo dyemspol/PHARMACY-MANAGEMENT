@@ -18,6 +18,10 @@
     
     <!-- Auth Utility -->
     <script type="module" src="/src/auth.js"></script>
+    <script type="module">
+      import { printerService } from './src/services/printerService.js';
+      window.printerService = printerService;
+    </script>
     
     <style>
       [x-cloak] { display: none !important; }
@@ -155,8 +159,38 @@
       this.paymentModalOpen = true;
     },
 
-    printReceipt() {
-      // Small delay to ensure Alpine has rendered any last-minute price changes if any
+    async printReceipt() {
+      // Check if printing is enabled in settings
+      const isEnabled = localStorage.getItem('printReceipts') !== 'false'; // Default to true if not set
+      if (!isEnabled) return;
+
+      const bluetoothDeviceId = localStorage.getItem('bluetoothDeviceId');
+      
+      // If a Bluetooth printer is configured, attempt to use it
+      if (bluetoothDeviceId && window.printerService) {
+        try {
+          const receiptData = {
+            transactionId: this.lastTransactionId,
+            items: this.cart,
+            subtotal: this.getTotal() + this.getTotalDiscount(),
+            discount: this.getTotalDiscount(),
+            total: this.getTotal(),
+            cash: parseFloat(this.cashAmount) || 0,
+            change: this.changeAmount
+          };
+          
+          const success = await window.printerService.printReceipt(receiptData);
+          if (success) {
+            console.log('Receipt printed via Bluetooth');
+            return;
+          }
+          console.warn('Bluetooth printing failed, falling back to browser print');
+        } catch (error) {
+          console.error('Bluetooth print error:', error);
+        }
+      }
+
+      // Fallback to browser standard print
       setTimeout(() => {
         const printContent = document.getElementById('receipt-print');
         if (printContent) {
@@ -314,6 +348,11 @@
           <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
             <i data-lucide="users" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Accounts</span>
+          </a>
+
+          <a href="printer_settings.html" class="nav-link w-full">
+            <i data-lucide="printer" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Printer Setup</span>
           </a>
         </nav>
 

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/src/img/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Printer Setup | DavaoDeOro</title>
+    <link href="/src/style.css" rel="stylesheet" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
+    
+    <!-- Auth Utility -->
+    <script type="module" src="/src/auth.js"></script>
+    <script type="module">
+      import { printerService } from './src/services/printerService.js';
+      window.printerService = printerService;
+    </script>
+    
+    <style>
+      [x-cloak] { display: none !important; }
+      .bg-mesh {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        background-color: #f8fafc;
+        background-image: 
+          radial-gradient(at 0% 0%, rgba(20, 184, 166, 0.05) 0px, transparent 50%),
+          radial-gradient(at 100% 0%, rgba(79, 70, 229, 0.05) 0px, transparent 50%);
+      }
+    </style>
+  </head>
+  <body class="antialiased text-slate-900 bg-[#F8FAFC]" x-data="{
+    printerName: localStorage.getItem('printerName') || '',
+    printerModel: localStorage.getItem('printerModel') || 'Epson TM-P20 (Bluetooth)',
+    bluetoothDevice: localStorage.getItem('bluetoothDevice') || '',
+    printReceipts: localStorage.getItem('printReceipts') === 'true',
+    printOrders: localStorage.getItem('printOrders') === 'true',
+    isSearching: false,
+
+    saveSettings() {
+      localStorage.setItem('printerName', this.printerName);
+      localStorage.setItem('printerModel', this.printerModel);
+      localStorage.setItem('bluetoothDevice', this.bluetoothDevice);
+      localStorage.setItem('printReceipts', this.printReceipts);
+      localStorage.setItem('printOrders', this.printOrders);
+      alert('Printer settings saved successfully!');
+    },
+
+    async searchBluetooth() {
+      this.isSearching = true;
+      try {
+        if (!window.printerService) {
+           alert('Printer service is not initialized.');
+           return;
+        }
+        const device = await window.printerService.connect();
+        this.bluetoothDevice = device.name || device.id;
+        alert('Printer connected: ' + this.bluetoothDevice);
+      } catch (error) {
+        console.error('Bluetooth error:', error);
+        alert('Failed to connect: ' + error.message);
+      } finally {
+        this.isSearching = false;
+      }
+    },
+
+    async printTest() {
+      if (!this.bluetoothDevice || !window.printerService) {
+        alert('Please connect to a Bluetooth printer first.');
+        return;
+      }
+      try {
+        const success = await window.printerService.printTestPage();
+        if (success) {
+          alert('Test page sent to ' + this.bluetoothDevice);
+        } else {
+          alert('Failed to send test page. Please try reconnecting.');
+        }
+      } catch (error) {
+        alert('Print error: ' + error.message);
+      }
+    }
+  }">
+    
+    <div class="bg-mesh"></div>
+
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-teal-600 text-white shadow-lg">
+      <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <a href="POST_terminal.html" class="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <i data-lucide="arrow-left" class="w-6 h-6"></i>
+          </a>
+          <h1 class="text-xl font-bold tracking-tight">Create printer</h1>
+        </div>
+        <button @click="saveSettings()" class="text-sm font-bold uppercase tracking-widest hover:text-teal-100 transition-colors">Save</button>
+      </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto p-4 sm:p-8">
+      <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden animate-bento">
+        <!-- Input Fields -->
+        <div class="p-6 sm:p-8 space-y-8">
+          
+          <!-- Name Input -->
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Name</label>
+            <input type="text" x-model="printerName" placeholder="e.g. Epson" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-medium">
+          </div>
+
+          <!-- Printer Model -->
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Printer model</label>
+            <div class="relative">
+              <select x-model="printerModel" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-medium appearance-none">
+                <option>Epson TM-P20 (Bluetooth)</option>
+                <option>Generic Thermal Printer (Bluetooth)</option>
+                <option>Star Micronics (Bluetooth)</option>
+              </select>
+              <i data-lucide="chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none"></i>
+            </div>
+          </div>
+
+          <!-- Bluetooth Printer Selection -->
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bluetooth printer</label>
+            <div class="flex gap-2">
+              <input type="text" x-model="bluetoothDevice" readonly placeholder="Connect to a printer..." class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none transition-all font-medium text-slate-500">
+              <button @click="searchBluetooth()" class="px-6 py-3 bg-teal-600 text-white font-bold rounded-2xl hover:bg-teal-700 active:scale-95 transition-all flex items-center gap-2">
+                <template x-if="!isSearching">
+                  <span class="text-sm">SEARCH</span>
+                </template>
+                <template x-if="isSearching">
+                  <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                </template>
+              </button>
+            </div>
+            
+            <!-- Compatibility Warning -->
+            <template x-if="!navigator.bluetooth">
+              <div class="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                 <div class="flex items-start gap-3">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+                    <div>
+                       <p class="text-xs font-bold text-amber-800">Browser Limitation</p>
+                       <p class="text-[11px] text-amber-700 mt-1 leading-relaxed">
+                          Bluetooth is NOT supported on iPhones/iPads or Safari. 
+                          <span class="font-bold">Use an Android device, a Desktop PC/Laptop</span>, or download the 
+                          <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822234" target="_blank" class="underline font-black">Bluefy Browser</a> 
+                          on iOS to use Bluetooth printers.
+                       </p>
+                    </div>
+                 </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Toggles -->
+          <div class="space-y-4 pt-4">
+            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <span class="text-sm font-bold text-slate-700">Print receipts and bills</span>
+              <button @click="printReceipts = !printReceipts" :class="printReceipts ? 'bg-teal-600' : 'bg-slate-300'" class="w-12 h-6 rounded-full relative transition-colors">
+                <div :class="printReceipts ? 'translate-x-6' : 'translate-x-0'" class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></div>
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <span class="text-sm font-bold text-slate-700">Print orders</span>
+              <button @click="printOrders = !printOrders" :class="printOrders ? 'bg-teal-600' : 'bg-slate-300'" class="w-12 h-6 rounded-full relative transition-colors">
+                <div :class="printOrders ? 'translate-x-6' : 'translate-x-0'" class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Print Test Button -->
+          <div class="pt-6">
+            <button @click="printTest()" class="w-full py-4 flex items-center justify-center gap-3 text-slate-600 hover:bg-slate-50 rounded-2xl transition-all border border-slate-200 font-bold">
+              <i data-lucide="printer" class="w-5 h-5"></i>
+              <span>PRINT TEST</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </main>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.lucide) lucide.createIcons();
+      });
+    </script>
+  </body>
+</html>

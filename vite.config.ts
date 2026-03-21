@@ -47,6 +47,7 @@ export default defineConfig({
         sales: resolve(__dirname, 'sales.html'),
         reports: resolve(__dirname, 'reports.html'),
         accounts: resolve(__dirname, 'accounts.html'),
+        printer_settings: resolve(__dirname, 'printer_settings.html'),
       }
     }
   }
