@@ -1,418 +1,495 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/img/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0d9488" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Dashboard | DavaoDeOro</title>
-    <link href="/src/style.css" rel="stylesheet" />
-    
-    <!-- Fonts: Outfit -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- Icons -->
-    <!-- Standard Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- App Scripts -->
-    <script type="module" src="/src/auth.js"></script>
-    <script type="module" src="/src/dashboard.js"></script>
-    <script type="module" src="/src/main.js"></script>
-    
-    <style>
-      [x-cloak] { display: none !important; }
-      .glass-card {
-        background: rgba(255, 255, 255, 0.7);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.4);
-        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      .glass-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 15px 35px -10px rgba(13, 148, 136, 0.1);
-      }
-      .bg-mesh {
-        position: fixed;
-        inset: 0;
-        z-index: -1;
-        background: radial-gradient(circle at 10% 10%, #f1f5f9 0%, transparent 40%),
-                    radial-gradient(circle at 90% 10%, #f0fdf4 0%, transparent 40%),
-                    radial-gradient(circle at 90% 90%, #f0f9ff 0%, transparent 40%),
-                    radial-gradient(circle at 10% 90%, #f8fafc 0%, transparent 40%);
-      }
-      .nav-link.active {
-        background: #0d9488;
-        color: white;
-        box-shadow: 0 10px 20px -5px rgba(13, 148, 136, 0.4);
-      }
-      .nav-link {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 14px 24px;
-        border-radius: 1.5rem;
-        color: #64748b;
-        transition: all 0.3s;
-      }
-      .nav-link:hover:not(.active) {
-        background: #f8fafc;
-        color: #0d9488;
-      }
-      .header-icon {
-        width: 52px;
-        height: 52px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 16px;
-        background: white;
-        border: 1px solid #f1f5f9;
-        transition: all 0.2s;
-        position: relative;
-        cursor: pointer;
-      }
-      .header-icon:hover {
-        background: #f8fafc;
-        border-color: #e2e8f0;
-        transform: translateY(-2px);
-      }
-      .badge {
-        position: absolute;
-        top: -8px;
-        right: -8px;
-        min-width: 20px;
-        height: 20px;
-        padding: 0 5px;
-        background: #ef4444;
-        color: white;
-        border-radius: 10px;
-        font-size: 10px;
-        font-weight: 800;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 2px solid white;
-      }
-      .filter-bar {
-        background: white;
-        border-radius: 100px;
-        padding: 10px;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        border: 1px solid #f1f5f9;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-      }
-      .filter-btn {
-        padding: 12px 28px;
-        border-radius: 100px;
-        font-size: 12px;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        transition: all 0.3s;
-        color: #64748b;
-      }
-      .filter-btn.active {
-        background: #0d9488;
-        color: white;
-        box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);
-      }
-      .filter-divider {
-        width: 1px;
-        height: 28px;
-        background: #f1f5f9;
-        margin: 0 10px;
-      }
-      input[type="date"]::-webkit-calendar-picker-indicator {
-        opacity: 0;
-        cursor: pointer;
-      }
-    </style>
-  </head>
-  <body class="antialiased text-slate-900 overflow-x-hidden" 
-    x-data="dashboardApp()"
-    x-init="init()"
-  >
-    
-    <div x-show="sidebarOpen" @click="sidebarOpen = false" x-cloak 
-         :class="sidebarOpen ? '' : 'pointer-events-none'"
-         class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"></div>
-    <div class="bg-mesh"></div>
 
-    <!-- Loading Overlay -->
-    <div x-show="isLoading" 
-         x-transition.opacity 
-         :class="isLoading ? 'flex' : 'hidden pointer-events-none'"
-         class="fixed inset-0 z-[100] bg-white/60 backdrop-blur-md flex-col items-center justify-center">
-        <div class="w-16 h-16 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p class="text-teal-600 font-extrabold text-sm uppercase tracking-widest animate-pulse">Syncing Pharmacy Data...</p>
-    </div>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/src/img/logo.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d9488" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Dashboard | DavaoDeOro</title>
+  <link href="/src/style.css" rel="stylesheet" />
 
-    <!-- Sidebar -->
-    <aside class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
-      <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
-        <div class="p-8">
-          <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
-            <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
-              <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-cover">
-            </div>
-            <div>
-              <h1 class="text-xl font-extrabold tracking-tight text-slate-800 leading-none">DavaoDeOro</h1>
-              <span class="text-[10px] font-bold uppercase tracking-widest text-teal-600 mt-1 block">Pharmacy</span>
-            </div>
-          </a>
-        </div>
-        <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
-          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
-          <a href="index.html" class="nav-link w-full active" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
-          <a href="inventory.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
-          <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span class="font-semibold text-[15px]">POS Terminal</span></a>
-          <a href="sales.html" class="nav-link w-full"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Sales History</span></a>
-          <a href="reports.html" class="nav-link w-full"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
-          <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
-        </nav>
-        <div class="p-6 mt-auto">
-          <button @click="window.auth.logout()" class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-[2rem] transition-all duration-300 font-bold text-sm group">
-            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i><span>Logout Account</span>
-          </button>
-        </div>
-      </div>
-    </aside>
+  <!-- Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
 
-    <main class="lg:ml-72 min-h-screen transition-all duration-500">
-      <header class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-4 sticky top-0 z-40 bg-white/40 backdrop-blur-md border-b border-white/20">
-        <div class="flex items-center gap-4 md:gap-6">
-          <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
-            <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6"></i>
-          </button>
+  <!-- Icons -->
+  <!-- Standard Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- App Scripts -->
+  <script type="module" src="/src/auth.js"></script>
+  <script type="module" src="/src/dashboard.js"></script>
+  <script type="module" src="/src/main.js"></script>
+
+  <style>
+    [x-cloak] {
+      display: none !important;
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 15px 35px -10px rgba(13, 148, 136, 0.1);
+    }
+
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      background: radial-gradient(circle at 10% 10%, #f1f5f9 0%, transparent 40%),
+        radial-gradient(circle at 90% 10%, #f0fdf4 0%, transparent 40%),
+        radial-gradient(circle at 90% 90%, #f0f9ff 0%, transparent 40%),
+        radial-gradient(circle at 10% 90%, #f8fafc 0%, transparent 40%);
+    }
+
+    .nav-link.active {
+      background: #0d9488;
+      color: white;
+      box-shadow: 0 10px 20px -5px rgba(13, 148, 136, 0.4);
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 24px;
+      border-radius: 1.5rem;
+      color: #64748b;
+      transition: all 0.3s;
+    }
+
+    .nav-link:hover:not(.active) {
+      background: #f8fafc;
+      color: #0d9488;
+    }
+
+    .header-icon {
+      width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      background: white;
+      border: 1px solid #f1f5f9;
+      transition: all 0.2s;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .header-icon:hover {
+      background: #f8fafc;
+      border-color: #e2e8f0;
+      transform: translateY(-2px);
+    }
+
+    .badge {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 5px;
+      background: #ef4444;
+      color: white;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid white;
+    }
+
+    .filter-bar {
+      background: white;
+      border-radius: 100px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid #f1f5f9;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+    }
+
+    .filter-btn {
+      padding: 12px 28px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      transition: all 0.3s;
+      color: #64748b;
+    }
+
+    .filter-btn.active {
+      background: #0d9488;
+      color: white;
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.2);
+    }
+
+    .filter-divider {
+      width: 1px;
+      height: 28px;
+      background: #f1f5f9;
+      margin: 0 10px;
+    }
+
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      opacity: 0;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body class="antialiased text-slate-900 overflow-x-hidden" x-data="dashboardApp()" x-init="init()">
+
+  <div x-show="sidebarOpen" @click="sidebarOpen = false" x-cloak :class="sidebarOpen ? '' : 'pointer-events-none'"
+    class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"></div>
+  <div class="bg-mesh"></div>
+
+  <!-- Loading Overlay -->
+  <div x-show="isLoading" x-transition.opacity :class="isLoading ? 'flex' : 'hidden pointer-events-none'"
+    class="fixed inset-0 z-[100] bg-white/60 backdrop-blur-md flex-col items-center justify-center">
+    <div class="w-16 h-16 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+    <p class="text-teal-600 font-extrabold text-sm uppercase tracking-widest animate-pulse">Syncing Pharmacy Data...</p>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
+    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+    <div
+      class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
+      <div class="p-8">
+        <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
+          <div
+            class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
+            <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-cover">
+          </div>
           <div>
-            <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Dashboard</h2>
-            <div class="flex items-center gap-3 mt-1">
-                <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap" x-text="todayFormatted"></p>
-                <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-md">Real-time Connected</span>
-            </div>
+            <h1 class="text-xl font-extrabold tracking-tight text-slate-800 leading-none">DavaoDeOro</h1>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-teal-600 mt-1 block">Pharmacy</span>
           </div>
-        </div>
+        </a>
+      </div>
+      <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
+        <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
+        <a href="index.html" class="nav-link w-full active" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i
+            data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
+        <a href="inventory.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i
+            data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
+        <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span
+            class="font-semibold text-[15px]">POS Terminal</span></a>
+        <a href="sales.html" class="nav-link w-full"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span
+            class="font-semibold text-[15px]">Sales History</span></a>
+        <a href="reports.html" class="nav-link w-full"><i data-lucide="file-text" class="w-5 h-5"></i><span
+            class="font-semibold text-[15px]">Reports</span></a>
+        <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i
+            data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
+      </nav>
+      <div class="p-6 mt-auto">
+        <button @click="window.auth.logout()"
+          class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-[2rem] transition-all duration-300 font-bold text-sm group">
+          <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i><span>Logout
+            Account</span>
+        </button>
+      </div>
+    </div>
+  </aside>
 
-        <div class="flex items-center gap-3">
-          <div class="hidden lg:flex items-center gap-4 bg-white/60 border border-slate-100/50 px-6 py-4 rounded-3xl mr-6 transition-all hover:bg-white hover:shadow-xl hover:shadow-teal-500/5">
-            <i data-lucide="user-circle" class="w-5 h-5 text-teal-600"></i>
-            <select x-model="selectedEmployee" @change="applyAllFilters()" class="bg-transparent border-none outline-none font-black text-sm text-slate-800 cursor-pointer">
-              <optgroup label="Staff Selection">
-                <option value="All">All Staff Members</option>
-                <template x-for="emp in employeesList" :key="emp"><option :value="emp" x-text="emp"></option></template>
-              </optgroup>
-            </select>
+  <main class="lg:ml-72 min-h-screen transition-all duration-500">
+    <header
+      class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-4 sticky top-0 z-40 bg-white/40 backdrop-blur-md border-b border-white/20">
+      <div class="flex items-center gap-4 md:gap-6">
+        <button @click="sidebarOpen = !sidebarOpen"
+          class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
+          <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6"></i>
+        </button>
+        <div>
+          <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Dashboard</h2>
+          <div class="flex items-center gap-3 mt-1">
+            <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap" x-text="todayFormatted"></p>
+            <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-md">Real-time
+              Connected</span>
           </div>
-
-          <button @click="openModal('expiring')" class="header-icon group" title="Expiring Soon">
-            <i data-lucide="clock" class="w-6 h-6 text-amber-500 group-hover:scale-110"></i>
-            <span class="badge" x-show="stats.expiringCount > 0" x-text="stats.expiringCount"></span>
-          </button>
-          <button @click="openModal('lowStock')" class="header-icon group" title="Low Stock">
-            <i data-lucide="package-search" class="w-6 h-6 text-red-600 group-hover:scale-110 transition-transform"></i>
-            <span class="badge" x-show="stats.lowStockCount > 0" x-text="stats.lowStockCount"></span>
-          </button>
-        </div>
-      </header>
-
-      <div class="p-8 space-y-8" @click="refreshVisuals()">
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
-          <!-- Gross Sales -->
-          <div class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i data-lucide="trending-up" class="w-5 h-5"></i></div>
-              <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Total</span>
-            </div>
-            <div>
-              <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Gross Sales</h3>
-              <p class="text-3xl font-extrabold text-white tracking-tight mt-1" x-text="'₱' + formatNum(stats.grossSales)"></p>
-            </div>
-          </div>
-
-          <!-- Discounts Applied -->
-          <div class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i data-lucide="badge-percent" class="w-5 h-5"></i></div>
-              <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Saved</span>
-            </div>
-            <div>
-              <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Total Discount</h3>
-              <p class="text-3xl font-extrabold text-white tracking-tight mt-1" x-text="'₱' + formatNum(stats.discountTotal)"></p>
-            </div>
-          </div>
-
-          <!-- Net Sales -->
-          <div class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i data-lucide="shopping-bag" class="w-5 h-5"></i></div>
-              <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Actual</span>
-            </div>
-            <div>
-              <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Net Sales</h3>
-              <p class="text-3xl font-extrabold text-white tracking-tight mt-1" x-text="'₱' + formatNum(stats.netSales)"></p>
-            </div>
-          </div>
-
-          <!-- Gross Profit -->
-          <div class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i data-lucide="banknote" class="w-5 h-5"></i></div>
-              <span class="text-[9px] font-extrabold uppercase bg-emerald-400 px-2 py-0.5 rounded-md text-emerald-950">Earnings</span>
-            </div>
-            <div>
-              <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Gross Profit</h3>
-              <p class="text-3xl font-extrabold text-white tracking-tight mt-1" x-text="'₱' + formatNum(stats.grossProfit)"></p>
-            </div>
-          </div>
-
-          <!-- Top Seller -->
-          <div class="rounded-[2.2rem] p-7 flex flex-col bg-teal-600 text-white border-none shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
-            <div class="flex items-center justify-between mb-4">
-              <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i data-lucide="star" class="w-5 h-5"></i></div>
-              <span class="text-[9px] font-extrabold uppercase bg-white/20 px-2 py-0.5 rounded-md">Top Seller</span>
-            </div>
-            <div>
-              <p class="text-sm font-bold text-teal-50 line-clamp-1" x-text="stats.topMovingProduct || 'No Sales'"></p>
-              <p class="text-2xl font-black mt-1" x-text="stats.topMovingQty + ' units'"></p>
-              <p class="text-[10px] text-teal-100 mt-1 uppercase font-bold tracking-widest">Best Selling</p>
-            </div>
-          </div>
-        </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-8">
-            <div class="glass-card rounded-[3rem] p-8 lg:p-10">
-                <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-10 gap-6">
-                    <div>
-                        <h4 class="text-2xl font-black text-slate-800 tracking-tight">Revenue Analysis</h4>
-                        <p class="text-sm text-slate-400 font-medium">Visualization based on selected filters</p>
-                    </div>
-                    
-                    <div class="filter-bar w-full xl:w-auto overflow-x-auto flex-nowrap">
-                        <button @click="setPeriod('daily')" class="filter-btn" :class="period === 'daily' ? 'active' : ''">Daily</button>
-                        <button @click="setPeriod('weekly')" class="filter-btn" :class="period === 'weekly' ? 'active' : ''">Weekly</button>
-                        <button @click="setPeriod('monthly')" class="filter-btn" :class="period === 'monthly' ? 'active' : ''">Monthly</button>
-                        <button @click="setPeriod('range')" class="filter-btn" :class="period === 'range' ? 'active' : ''">Pick Range</button>
-                        
-                        <div class="filter-divider"></div>
-                        
-                        <div class="flex items-center gap-4 px-4 min-w-fit">
-                            <template x-if="period !== 'range'">
-                                <div class="flex flex-col relative group">
-                                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Reference Date</span>
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-xs font-black text-slate-800" x-text="referenceDateStr"></span>
-                                        <input type="date" x-model="referenceDate" @change="applyAllFilters()" class="absolute inset-0 opacity-0 cursor-pointer">
-                                        <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
-                                    </div>
-                                </div>
-                            </template>
-                            <template x-if="period === 'range'">
-                                <div class="flex items-center gap-4">
-                                    <div class="flex flex-col relative">
-                                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">From</span>
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs font-black text-slate-800" x-text="formatDateStr(rangeFrom)"></span>
-                                            <input type="date" x-model="rangeFrom" @change="applyAllFilters()" class="absolute inset-0 opacity-0 cursor-pointer">
-                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
-                                        </div>
-                                    </div>
-                                    <div class="flex flex-col relative">
-                                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">To</span>
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs font-black text-slate-800" x-text="formatDateStr(rangeTo)"></span>
-                                            <input type="date" x-model="rangeTo" @change="applyAllFilters()" class="absolute inset-0 opacity-0 cursor-pointer">
-                                            <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
-                                        </div>
-                                    </div>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-                <div class="h-[450px]"><canvas id="grossSalesChart"></canvas></div>
-            </div>
         </div>
       </div>
-    </main>
 
-    <!-- Expiring Modal -->
-    <div x-show="showExpiringModal" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-        <div class="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden" @click.away="showExpiringModal = false">
-            <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-orange-50/20">
-                <h2 class="text-2xl font-black text-slate-800">Expiring Items List</h2>
-                <button @click="showExpiringModal = false" class="w-10 h-10 flex items-center justify-center bg-white rounded-xl border border-slate-100 text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <div class="overflow-y-auto p-8">
-                <table class="w-full">
-                    <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b">
-                        <th class="text-left pb-4">Product</th>
-                        <th class="text-center pb-4">Batch</th>
-                        <th class="text-center pb-4">Stock</th>
-                        <th class="text-center pb-4">Expiry</th>
-                        <th class="text-right pb-4">Action</th>
-                    </tr>
-                    <template x-for="item in criticalItems" :key="item.id">
-                        <tr class="border-b border-slate-50">
-                            <td class="py-4 font-bold text-slate-700">
-                                <span x-text="item.name"></span>
-                            </td>
-                            <td class="py-4 text-center">
-                                <span class="bg-slate-50 text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-100 uppercase" x-text="item.batch || 'N/A'"></span>
-                            </td>
-                            <td class="py-4 text-center">
-                                <span :class="window.db.parseStock(item.stock) <= 50 ? 'text-rose-500' : 'text-orange-500'" class="font-black" x-text="item.stock"></span>
-                            </td>
-                            <td class="py-4 text-center text-slate-500 text-xs font-bold" x-text="item.expiryDate"></td>
-                            <td class="py-4 text-right">
-                                <a href="inventory.html" class="text-[10px] font-black underline uppercase text-slate-900 hover:text-amber-600 transition-colors">Restock Now</a>
-                            </td>
-                        </tr>
-                    </template>
-                    <template x-if="criticalItems.length === 0"><tr><td colspan="5" class="py-10 text-center text-slate-400">No items expiring soon</td></tr></template>
-                </table>
-            </div>
+      <div class="flex items-center gap-3">
+        <div
+          class="hidden lg:flex items-center gap-4 bg-white/60 border border-slate-100/50 px-6 py-4 rounded-3xl mr-6 transition-all hover:bg-white hover:shadow-xl hover:shadow-teal-500/5">
+          <i data-lucide="user-circle" class="w-5 h-5 text-teal-600"></i>
+          <select x-model="selectedEmployee" @change="applyAllFilters()"
+            class="bg-transparent border-none outline-none font-black text-sm text-slate-800 cursor-pointer">
+            <optgroup label="Staff Selection">
+              <option value="All">All Staff Members</option>
+              <template x-for="emp in employeesList" :key="emp">
+                <option :value="emp" x-text="emp"></option>
+              </template>
+            </optgroup>
+          </select>
         </div>
+
+        <button @click="openModal('expiring')" class="header-icon group" title="Expiring Soon">
+          <i data-lucide="clock" class="w-6 h-6 text-amber-500 group-hover:scale-110"></i>
+          <span class="badge" x-show="stats.expiringCount > 0" x-text="stats.expiringCount"></span>
+        </button>
+        <button @click="openModal('lowStock')" class="header-icon group" title="Low Stock">
+          <i data-lucide="package-search" class="w-6 h-6 text-red-600 group-hover:scale-110 transition-transform"></i>
+          <span class="badge" x-show="stats.lowStockCount > 0" x-text="stats.lowStockCount"></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="p-8 space-y-8" @click="refreshVisuals()">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        <!-- Gross Sales -->
+        <div
+          class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
+          <div class="flex items-center justify-between mb-4">
+            <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i
+                data-lucide="trending-up" class="w-5 h-5"></i></div>
+            <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Total</span>
+          </div>
+          <div>
+            <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Gross Sales</h3>
+            <p class="text-3xl font-extrabold text-white tracking-tight mt-1"
+              x-text="'₱' + formatNum(stats.grossSales)"></p>
+          </div>
+        </div>
+
+        <!-- Discounts Applied -->
+        <div
+          class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
+          <div class="flex items-center justify-between mb-4">
+            <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i
+                data-lucide="badge-percent" class="w-5 h-5"></i></div>
+            <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Saved</span>
+          </div>
+          <div>
+            <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Total Discount</h3>
+            <p class="text-3xl font-extrabold text-white tracking-tight mt-1"
+              x-text="'₱' + formatNum(stats.discountTotal)"></p>
+          </div>
+        </div>
+
+        <!-- Net Sales -->
+        <div
+          class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
+          <div class="flex items-center justify-between mb-4">
+            <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i
+                data-lucide="shopping-bag" class="w-5 h-5"></i></div>
+            <span class="text-[9px] font-extrabold uppercase bg-white/10 px-2 py-0.5 rounded-md">Actual</span>
+          </div>
+          <div>
+            <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Net Sales</h3>
+            <p class="text-3xl font-extrabold text-white tracking-tight mt-1" x-text="'₱' + formatNum(stats.netSales)">
+            </p>
+          </div>
+        </div>
+
+        <!-- Gross Profit -->
+        <div
+          class="rounded-[2.2rem] p-7 flex flex-col justify-between bg-teal-600 text-white shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
+          <div class="flex items-center justify-between mb-4">
+            <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i
+                data-lucide="banknote" class="w-5 h-5"></i></div>
+            <span
+              class="text-[9px] font-extrabold uppercase bg-emerald-400 px-2 py-0.5 rounded-md text-emerald-950">Earnings</span>
+          </div>
+          <div>
+            <h3 class="text-teal-100 font-bold uppercase tracking-widest text-[10px]">Gross Profit</h3>
+            <p class="text-3xl font-extrabold text-white tracking-tight mt-1"
+              x-text="'₱' + formatNum(stats.grossProfit)"></p>
+          </div>
+        </div>
+
+        <!-- Top Seller -->
+        <div
+          class="rounded-[2.2rem] p-7 flex flex-col bg-teal-600 text-white border-none shadow-2xl shadow-teal-600/20 hover:scale-[1.02] transition-transform duration-300">
+          <div class="flex items-center justify-between mb-4">
+            <div class="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white"><i
+                data-lucide="star" class="w-5 h-5"></i></div>
+            <span class="text-[9px] font-extrabold uppercase bg-white/20 px-2 py-0.5 rounded-md">Top Seller</span>
+          </div>
+          <div>
+            <p class="text-sm font-bold text-teal-50 line-clamp-1" x-text="stats.topMovingProduct || 'No Sales'"></p>
+            <p class="text-2xl font-black mt-1" x-text="stats.topMovingQty + ' units'"></p>
+            <p class="text-[10px] text-teal-100 mt-1 uppercase font-bold tracking-widest">Best Selling</p>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- Low Stock Modal -->
-    <div x-show="showLowStockModal" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-        <div class="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden" @click.away="showLowStockModal = false">
-            <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-rose-50/20">
-                <h2 class="text-2xl font-black text-slate-800">Low Stock Inventory</h2>
-                <button @click="showLowStockModal = false" class="w-10 h-10 flex items-center justify-center bg-white rounded-xl border border-slate-100 text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
-            </div>
-            <div class="overflow-y-auto p-8">
-                <table class="w-full">
-                    <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b">
-                        <th class="text-left pb-4">Product</th>
-                        <th class="text-center pb-4">Available</th>
-                        <th class="text-right pb-4">Action</th>
-                    </tr>
-                    <template x-for="item in lowStockItems" :key="item.id">
-                        <tr class="border-b border-slate-50">
-                            <td class="py-4 font-bold text-slate-700" x-text="item.name"></td>
-                            <td class="py-4 text-center font-bold text-rose-500" x-text="item.stock"></td>
-                            <td class="py-4 text-right"><a href="inventory.html" class="text-[10px] font-black underline uppercase text-slate-900 hover:text-rose-500 transition-colors">Restock Now</a></td>
-                        </tr>
-                    </template>
-                    <template x-if="lowStockItems.length === 0"><tr><td colspan="3" class="py-10 text-center text-slate-400">All stock levels healthy</td></tr></template>
-                </table>
-            </div>
-        </div>
-    </div>
+    <div class="grid grid-cols-1 gap-8">
+      <div class="glass-card rounded-[3rem] p-8 lg:p-10">
+        <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-10 gap-6">
+          <div>
+            <h4 class="text-2xl font-black text-slate-800 tracking-tight">Revenue Analysis</h4>
+            <p class="text-sm text-slate-400 font-medium">Visualization based on selected filters</p>
+          </div>
 
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
-  </body>
+          <div class="filter-bar w-full xl:w-auto overflow-x-auto flex-nowrap">
+            <button @click="setPeriod('daily')" class="filter-btn"
+              :class="period === 'daily' ? 'active' : ''">Daily</button>
+            <button @click="setPeriod('weekly')" class="filter-btn"
+              :class="period === 'weekly' ? 'active' : ''">Weekly</button>
+            <button @click="setPeriod('monthly')" class="filter-btn"
+              :class="period === 'monthly' ? 'active' : ''">Monthly</button>
+            <button @click="setPeriod('range')" class="filter-btn" :class="period === 'range' ? 'active' : ''">Pick
+              Range</button>
+
+            <div class="filter-divider"></div>
+
+            <div class="flex items-center gap-4 px-4 min-w-fit">
+              <template x-if="period !== 'range'">
+                <div class="flex flex-col relative group">
+                  <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Reference Date</span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-black text-slate-800" x-text="referenceDateStr"></span>
+                    <input type="date" x-model="referenceDate" @change="applyAllFilters()"
+                      class="absolute inset-0 opacity-0 cursor-pointer">
+                    <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                  </div>
+                </div>
+              </template>
+              <template x-if="period === 'range'">
+                <div class="flex items-center gap-4">
+                  <div class="flex flex-col relative">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">From</span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-black text-slate-800" x-text="formatDateStr(rangeFrom)"></span>
+                      <input type="date" x-model="rangeFrom" @change="applyAllFilters()"
+                        class="absolute inset-0 opacity-0 cursor-pointer">
+                      <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                    </div>
+                  </div>
+                  <div class="flex flex-col relative">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">To</span>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-black text-slate-800" x-text="formatDateStr(rangeTo)"></span>
+                      <input type="date" x-model="rangeTo" @change="applyAllFilters()"
+                        class="absolute inset-0 opacity-0 cursor-pointer">
+                      <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+        <div class="h-[450px]"><canvas id="grossSalesChart"></canvas></div>
+      </div>
+    </div>
+    </div>
+  </main>
+
+  <!-- Expiring Modal -->
+  <div x-show="showExpiringModal" x-cloak
+    class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+    <div class="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden"
+      @click.away="showExpiringModal = false">
+      <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-orange-50/20">
+        <h2 class="text-2xl font-black text-slate-800">Expiring Items List</h2>
+        <button @click="showExpiringModal = false"
+          class="w-10 h-10 flex items-center justify-center bg-white rounded-xl border border-slate-100 text-slate-400"><i
+            data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="overflow-y-auto p-8">
+        <table class="w-full">
+          <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b">
+            <th class="text-left pb-4">Product</th>
+            <th class="text-center pb-4">Batch</th>
+            <th class="text-center pb-4">Stock</th>
+            <th class="text-center pb-4">Expiry</th>
+            <th class="text-right pb-4">Action</th>
+          </tr>
+          <template x-for="item in criticalItems" :key="item.id">
+            <tr class="border-b border-slate-50">
+              <td class="py-4 font-bold text-slate-700">
+                <span x-text="item.name"></span>
+              </td>
+              <td class="py-4 text-center">
+                <span
+                  class="bg-slate-50 text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-100 uppercase"
+                  x-text="item.batch || 'N/A'"></span>
+              </td>
+              <td class="py-4 text-center">
+                <span :class="window.db.parseStock(item.stock) <= 50 ? 'text-rose-500' : 'text-orange-500'"
+                  class="font-black" x-text="item.stock"></span>
+              </td>
+              <td class="py-4 text-center text-slate-500 text-xs font-bold" x-text="item.expiryDate"></td>
+              <td class="py-4 text-right">
+                <a href="inventory.html"
+                  class="text-[10px] font-black underline uppercase text-slate-900 hover:text-amber-600 transition-colors">Restock
+                  Now</a>
+              </td>
+            </tr>
+          </template>
+          <template x-if="criticalItems.length === 0">
+            <tr>
+              <td colspan="5" class="py-10 text-center text-slate-400">No items expiring soon</td>
+            </tr>
+          </template>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Low Stock Modal -->
+  <div x-show="showLowStockModal" x-cloak
+    class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+    <div class="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden"
+      @click.away="showLowStockModal = false">
+      <div class="p-8 border-b border-slate-100 flex items-center justify-between bg-rose-50/20">
+        <h2 class="text-2xl font-black text-slate-800">Low Stock Inventory</h2>
+        <button @click="showLowStockModal = false"
+          class="w-10 h-10 flex items-center justify-center bg-white rounded-xl border border-slate-100 text-slate-400"><i
+            data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="overflow-y-auto p-8">
+        <table class="w-full">
+          <tr class="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] border-b">
+            <th class="text-left pb-4">Product</th>
+            <th class="text-center pb-4">Available</th>
+            <th class="text-right pb-4">Action</th>
+          </tr>
+          <template x-for="item in lowStockItems" :key="item.id">
+            <tr class="border-b border-slate-50">
+              <td class="py-4 font-bold text-slate-700" x-text="item.name"></td>
+              <td class="py-4 text-center font-bold text-rose-500" x-text="item.stock"></td>
+              <td class="py-4 text-right"><a href="inventory.html"
+                  class="text-[10px] font-black underline uppercase text-slate-900 hover:text-rose-500 transition-colors">Restock
+                  Now</a></td>
+            </tr>
+          </template>
+          <template x-if="lowStockItems.length === 0">
+            <tr>
+              <td colspan="3" class="py-10 text-center text-slate-400">All stock levels healthy</td>
+            </tr>
+          </template>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
+</body>
+
 </html>
