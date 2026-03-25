@@ -224,7 +224,7 @@
 
                 <div class="text-right">
                   <p class="text-xs font-bold text-slate-500" x-text="`${item.quantity} x ₱${item.price.toFixed(2)}`"></p>
-                  <p class="text-sm font-black text-teal-600 mt-0.5 tracking-tight" x-text="`₱${(item.quantity * item.price).toFixed(2)}`"></p>
+                  <p class="text-sm font-black text-blue-900 mt-0.5 tracking-tight" x-text="`₱${(item.quantity * item.price).toFixed(2)}`"></p>
                 </div>
               </div>
             </template>
@@ -243,7 +243,7 @@
 
         <section class="flex justify-end gap-3">
           <button @click="saleDetailsModal = false" class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all text-sm">Close Window</button>
-          <button class="px-8 py-3 bg-teal-600 text-white font-bold rounded-2xl shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all text-sm flex items-center gap-2 group">
+          <button class="px-8 py-3 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-500/20 hover:bg-red-700 transition-all text-sm flex items-center gap-2 group">
             <i class="hgi hgi-stroke hgi-download-01 group-hover:-translate-y-0.5 transition-transform"></i>
             <span>Download Invoice</span>
           </button>
@@ -284,7 +284,7 @@
         x-show="sidebarOpen"
         x-cloak
         @click="sidebarOpen = false" 
-        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-teal-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-teal-500/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all"
+        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-blue-900 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-900/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all"
       >
         <i data-lucide="chevron-left" class="w-5 h-5"></i>
       </button>
@@ -365,7 +365,7 @@
         </div>
 
         <div class="flex items-center gap-4">
-          <button @click="exportCSV()" class="px-6 py-3 bg-teal-600 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all cursor-pointer relative z-10">
+          <button @click="exportCSV()" class="px-6 py-3 bg-blue-900 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-blue-900/20 hover:bg-blue-800 transition-all cursor-pointer relative z-10">
             <i data-lucide="download-cloud" class="w-4 h-4"></i>
             <span>Export CSV</span>
           </button>
@@ -433,20 +433,20 @@
                       <div class="flex items-center gap-2">
                         <span class="text-sm font-bold text-slate-700" x-text="sale.items"></span>
                         <span class="w-1 h-1 bg-slate-300 rounded-full"></span>
-                        <span class="text-[10px] text-teal-600 font-bold uppercase" x-text="sale.units"></span>
+                        <span class="text-[10px] text-blue-900 font-bold uppercase" x-text="sale.units"></span>
                       </div>
                     </td>
                     <td class="px-8 py-6 text-right">
                       <span class="text-xs font-bold text-rose-500" x-text="sale.discount"></span>
                     </td>
                     <td class="px-8 py-6 text-right">
-                      <span class="text-lg font-black text-teal-600 tracking-tight" x-text="sale.total"></span>
+                      <span class="text-lg font-black text-blue-900 tracking-tight" x-text="sale.total"></span>
                     </td>
                     <td class="px-8 py-6">
                       <div class="flex items-center justify-center gap-3">
                         <button 
                           @click="selectedSale = { id: sale.id, date: sale.date + ' ' + sale.time, total: sale.total, discount: sale.discount, subtotal: sale.subtotal, itemsCount: parseInt(sale.items), items: sale.cart }; saleDetailsModal = true"
-                          class="w-10 h-10 flex items-center justify-center bg-teal-50 text-teal-600 rounded-xl hover:bg-teal-600 hover:text-white transition-all shadow-sm cursor-pointer"
+                          class="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-900 rounded-xl hover:bg-blue-900 hover:text-white transition-all shadow-sm cursor-pointer"
                         >
                           <i data-lucide="eye" class="w-4 h-4 pointer-events-none"></i>
                         </button>
@@ -467,7 +467,7 @@
               <button 
                 @click="prevPage" 
                 :disabled="currentPage === 1" 
-                :class="currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:border-teal-300 hover:text-teal-600 cursor-pointer'" 
+                :class="currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-300 hover:text-blue-900 cursor-pointer'" 
                 class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 transition-colors shadow-sm"
               >
                 <i data-lucide="chevron-left" class="w-4 h-4"></i>
@@ -477,7 +477,7 @@
                 <button 
                   @click="goToPage(i)" 
                   class="w-10 h-10 flex items-center justify-center rounded-xl font-bold text-xs shadow-sm cursor-pointer transition-colors"
-                  :class="currentPage === i ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/20 ring-4 ring-teal-500/10' : 'bg-white border border-slate-100 text-slate-600 hover:text-teal-600 hover:border-teal-300'"
+                  :class="currentPage === i ? 'bg-blue-900 text-white shadow-lg shadow-blue-900/20 ring-4 ring-blue-900/10' : 'bg-white border border-slate-100 text-slate-600 hover:text-blue-900 hover:border-blue-300'"
                   x-text="i"
                 ></button>
               </template>
@@ -485,7 +485,7 @@
               <button 
                 @click="nextPage" 
                 :disabled="currentPage === totalPages" 
-                :class="currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:border-teal-300 hover:text-teal-600 cursor-pointer'" 
+                :class="currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-300 hover:text-blue-900 cursor-pointer'" 
                 class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 transition-colors shadow-sm"
               >
                 <i data-lucide="chevron-right" class="w-4 h-4"></i>
