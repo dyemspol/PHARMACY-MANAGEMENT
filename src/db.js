@@ -11,6 +11,7 @@ export const fetchInventory = async () => {
     querySnapshot.forEach((doc) => {
       items.push({ id: doc.id, ...doc.data() });
     });
+    items.sort((a, b) => a.name.localeCompare(b.name));
     return items;
   } catch (error) {
     console.error("Error fetching inventory: ", error);

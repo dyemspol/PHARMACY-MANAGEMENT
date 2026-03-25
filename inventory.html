@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/src/img/logo.png" />
+  <link rel="icon" type="image/png" href="/src/img/riteMed.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stock Management | DavaoDeOro</title>
   <link href="/src/style.css" rel="stylesheet" />
@@ -145,25 +145,30 @@
         return 'bg-emerald-50 text-emerald-600 border-emerald-100/50';
       },
       get filteredMedicines() {
-        return this.medicines.filter(m => m.name.toLowerCase().includes(this.searchTerm.toLowerCase()));
+        return this.medicines.filter(m => 
+          m.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+          (m.brandName && m.brandName.toLowerCase().includes(this.searchTerm.toLowerCase()))
+        ).sort((a, b) => a.name.localeCompare(b.name));
       },
       get filteredMedicinesOnly() {
         return this.medicines.filter(m => 
           m.kind === 'Medicine' && 
           (this.selectedCategory === 'All' || m.category === this.selectedCategory) &&
-          m.name.toLowerCase().includes(this.searchTerm.toLowerCase())
-        );
+          (m.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+           (m.brandName && m.brandName.toLowerCase().includes(this.searchTerm.toLowerCase())))
+        ).sort((a, b) => a.name.localeCompare(b.name));
       },
       get filteredGeneralItemsOnly() {
         return this.medicines.filter(m => 
           (m.kind === 'General' || !m.kind) && 
           (this.selectedCategory === 'All' || m.category === this.selectedCategory) &&
-          m.name.toLowerCase().includes(this.searchTerm.toLowerCase())
-        );
+          (m.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+           (m.brandName && m.brandName.toLowerCase().includes(this.searchTerm.toLowerCase())))
+        ).sort((a, b) => a.name.localeCompare(b.name));
       },
       async addMedicine() {
         if (!this.newMedicine.name || !this.newMedicine.stock || !this.newMedicine.sellingPrice) return;
-        const colors = ['bg-teal-50 text-teal-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
+        const colors = ['bg-blue-50 text-blue-900', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
         
         const finalName = this.newMedicine.name + (this.newMedicine.strength ? ' ' + this.newMedicine.strength : '');
@@ -178,8 +183,8 @@
           batch: this.newMedicine.batch || ('NEW-' + Math.floor(Math.random() * 1000)),
           supplier: this.newMedicine.supplier || 'N/A',
           stock: this.newMedicine.stock + ' units',
-          costPrice: '₱' + parseFloat(this.newMedicine.costPrice || 0).toFixed(2),
-          sellingPrice: '₱' + parseFloat(this.newMedicine.sellingPrice).toFixed(2),
+          costPrice: '?' + parseFloat(this.newMedicine.costPrice || 0).toFixed(2),
+          sellingPrice: '?' + parseFloat(this.newMedicine.sellingPrice).toFixed(2),
           expiryStatus: 'Good',
           expiryDate: this.newMedicine.expiryDate || 'N/A',
           color: randomColor
@@ -188,8 +193,8 @@
         try {
           const newId = await window.db.addInventoryItem(itemToSave);
           itemToSave.id = newId;
-
-          this.medicines.unshift(itemToSave);
+          this.medicines.push(itemToSave);
+          this.medicines.sort((a, b) => a.name.localeCompare(b.name));
           this.newMedicine = { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
           this.addModalOpen = false;
           this.$nextTick(() => lucide.createIcons());
@@ -200,7 +205,7 @@
       },
       async addGeneralItem() {
         if (!this.newGeneralItem.name || !this.newGeneralItem.stock || !this.newGeneralItem.sellingPrice) return;
-        const colors = ['bg-teal-50 text-teal-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
+        const colors = ['bg-blue-50 text-blue-900', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
         
         const itemToSave = {
@@ -213,8 +218,8 @@
           batch: this.newGeneralItem.batch || ('G-' + Math.floor(Math.random() * 1000)),
           supplier: this.newGeneralItem.supplier || 'N/A',
           stock: this.newGeneralItem.stock + ' units',
-          costPrice: '₱' + parseFloat(this.newGeneralItem.costPrice || 0).toFixed(2),
-          sellingPrice: '₱' + parseFloat(this.newGeneralItem.sellingPrice).toFixed(2),
+          costPrice: '?' + parseFloat(this.newGeneralItem.costPrice || 0).toFixed(2),
+          sellingPrice: '?' + parseFloat(this.newGeneralItem.sellingPrice).toFixed(2),
           expiryStatus: 'Good',
           expiryDate: this.newGeneralItem.expiryDate || 'N/A',
           color: randomColor
@@ -223,8 +228,8 @@
         try {
           const newId = await window.db.addInventoryItem(itemToSave);
           itemToSave.id = newId;
-          
-          this.medicines.unshift(itemToSave);
+          this.medicines.push(itemToSave);
+          this.medicines.sort((a, b) => a.name.localeCompare(b.name));
           this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
           this.addGeneralModalOpen = false;
           this.$nextTick(() => lucide.createIcons());
@@ -281,8 +286,8 @@
           barcode: this.editingMedicine.barcode || 'N/A',
           category: this.editingMedicine.category,
           stock: this.editingMedicine.stock + ' units',
-          costPrice: '₱' + parseFloat(this.editingMedicine.costPrice || 0).toFixed(2),
-          sellingPrice: '₱' + parseFloat(this.editingMedicine.sellingPrice).toFixed(2),
+          costPrice: '?' + parseFloat(this.editingMedicine.costPrice || 0).toFixed(2),
+          sellingPrice: '?' + parseFloat(this.editingMedicine.sellingPrice).toFixed(2),
           supplier: this.editingMedicine.supplier || 'N/A',
           batch: this.editingMedicine.batch || 'N/A',
           expiryDate: this.editingMedicine.expiryDate || 'N/A'
@@ -296,9 +301,9 @@
 
         await window.db.updateInventoryItem(this.editingId, updatedData);
 
-        const targetIndex = this.medicines.findIndex(m => m.id === this.editingId);
         if (targetIndex !== -1) {
           this.medicines[targetIndex] = { ...this.medicines[targetIndex], ...updatedData };
+          this.medicines.sort((a, b) => a.name.localeCompare(b.name));
         }
 
         this.editModalOpen = false;
@@ -333,23 +338,15 @@
       :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
       <!-- Mobile Toggle Arrow (Overlapping Edge) -->
       <button x-show="sidebarOpen" x-cloak @click="sidebarOpen = false"
-        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-teal-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-teal-500/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all">
+        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-blue-900 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-800/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all">
         <i data-lucide="chevron-left" class="w-5 h-5"></i>
       </button>
 
       <div
         class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
-        <div class="p-8">
-          <a href="index.html"
-            class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
-            <div
-              class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
-              <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-cover">
-            </div>
-            <div>
-              <h1 class="text-xl font-extrabold tracking-tight text-slate-800 leading-none">DavaoDeOro</h1>
-              <span class="text-[10px] font-bold uppercase tracking-widest text-teal-600 mt-1 block">Pharmacy</span>
-            </div>
+        <div class="px-6 py-8">
+          <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
+              <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
           </a>
         </div>
 
@@ -588,7 +585,7 @@
                                     x-text="medicine.strength || (medicine.name.match(/\d+\s?(mg)?$/i) ? medicine.name.match(/\d+\s?(mg)?$/i)[0].replace(/mg$/i, '') : 'N/A')"></span>
                             </td>
                             <td class="px-8 py-6 text-center">
-                              <span :class="medicine.type === 'Branded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-teal-50 text-teal-600 border-teal-100/50'"
+                              <span :class="medicine.type === 'Branded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-blue-50 text-blue-900 border-blue-100/50'"
                                 class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-full border inline-block"
                                 x-text="medicine.type"></span>
                             </td>
@@ -866,12 +863,12 @@
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (?)</label>
                           <input x-model="newMedicine.costPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (?)</label>
                           <input x-model="newMedicine.sellingPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
@@ -970,12 +967,12 @@
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (?)</label>
                           <input x-model="newGeneralItem.costPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (?)</label>
                           <input x-model="newGeneralItem.sellingPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
@@ -1132,13 +1129,13 @@
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (?)</label>
                           <input x-model="editingMedicine.costPrice" type="number" step="0.01"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (?)</label>
                           <input x-model="editingMedicine.sellingPrice" type="number" step="0.01"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
