@@ -158,11 +158,9 @@ class PrinterService {
     add(this.commands.init);
     add(this.commands.alignCenter);
     add(this.commands.boldOn);
-    text('RIGHT MEDS\n');
+    text('RIGHT MED\n');
     add(this.commands.boldOff);
     text('PHARMACY AND MEDICAL SUPPLY\n\n');
-    text('Right Meds Pharmacy and Medical\n');
-    text('Supply\n');
     text('Mendez Town Square, Townsite,\n');
     text('Kingking Pantukan, Davao de Oro\n\n');
     text('TEL# 084-817-0874\n\n');
@@ -170,7 +168,6 @@ class PrinterService {
     add(this.commands.alignLeft);
     const employee = receiptData.cashierName || 'Admin / Cashier';
     text(`Employee: ${employee}\n`);
-    text(`POS: BELLE\n`);
     text('--------------------------------\n');
     
     receiptData.items.forEach(item => {
@@ -231,7 +228,7 @@ class PrinterService {
     add(this.commands.init);
     add(this.commands.alignCenter);
     add(this.commands.boldOn);
-    text('RIGHT MEDS\n');
+    text('RIGHT MED\n');
     add(this.commands.boldOff);
     text('PHARMACY AND MEDICAL SUPPLY\n');
     text('--------------------------------\n');
