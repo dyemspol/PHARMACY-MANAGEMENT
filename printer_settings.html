@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/img/logo.png" />
+    <link rel="icon" type="image/png" href="/src/img/riteMed.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Printer Setup | DavaoDeOro</title>
     <link href="/src/style.css" rel="stylesheet" />
@@ -34,8 +34,8 @@
         z-index: -1;
         background-color: #f8fafc;
         background-image: 
-          radial-gradient(at 0% 0%, rgba(20, 184, 166, 0.05) 0px, transparent 50%),
-          radial-gradient(at 100% 0%, rgba(79, 70, 229, 0.05) 0px, transparent 50%);
+          radial-gradient(at 0% 0%, rgba(30, 58, 138, 0.05) 0px, transparent 50%),
+          radial-gradient(at 100% 0%, rgba(220, 38, 38, 0.05) 0px, transparent 50%);
       }
     </style>
   </head>
@@ -47,6 +47,7 @@
     printOrders: localStorage.getItem('printOrders') === 'true',
     isSearching: false,
     printerStatus: 'disconnected',
+    sidebarOpen: window.innerWidth > 1024,
 
     init() {
       if (window.printerService) {
@@ -102,113 +103,184 @@
     }
   }">
     
+    <div x-show="sidebarOpen" @click="sidebarOpen = false" x-cloak :class="sidebarOpen ? '' : 'pointer-events-none'"
+      class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"></div>
     <div class="bg-mesh"></div>
 
-    <!-- Header -->
-    <header class="sticky top-0 z-50 bg-teal-600 text-white shadow-lg">
-      <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-          <a href="POST_terminal.html" class="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <i data-lucide="arrow-left" class="w-6 h-6"></i>
+    <!-- Sidebar -->
+    <aside class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
+      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+      <div
+        class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
+        <div class="px-6 py-8">
+          <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
+              <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
           </a>
-          <h1 class="text-xl font-bold tracking-tight">Create printer</h1>
         </div>
-        <button @click="saveSettings()" class="text-sm font-bold uppercase tracking-widest hover:text-teal-100 transition-colors">Save</button>
+        <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
+          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
+          <a href="index.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i
+              data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
+          <a href="inventory.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i
+              data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
+          <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span
+              class="font-semibold text-[15px]">POS Terminal</span></a>
+          <a href="sales.html" class="nav-link w-full"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span
+              class="font-semibold text-[15px]">Sales History</span></a>
+          <a href="reports.html" class="nav-link w-full"><i data-lucide="file-text" class="w-5 h-5"></i><span
+              class="font-semibold text-[15px]">Reports</span></a>
+          <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i
+              data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
+          <a href="printer_settings.html" class="nav-link w-full active"><i data-lucide="printer" class="w-5 h-5"></i><span
+              class="font-semibold text-[15px]">Printer Setup</span></a>
+        </nav>
+        <div class="p-6 mt-auto">
+          <button @click="window.auth.logout()"
+            class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
+            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i><span>Logout
+              Account</span>
+          </button>
+        </div>
       </div>
-    </header>
+    </aside>
 
-    <main class="max-w-4xl mx-auto p-4 sm:p-8">
-      <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden animate-bento">
-        <!-- Input Fields -->
-        <div class="p-6 sm:p-8 space-y-8">
+    <main class="lg:ml-72 min-h-screen transition-all duration-500">
+      <div class="bg-mesh"></div>
+
+      <!-- Header -->
+      <header class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-5 sticky top-0 z-40 bg-white/40 backdrop-blur-md border-b border-white/20">
+        <div class="flex items-center gap-4 md:gap-6">
+          <button @click="sidebarOpen = !sidebarOpen"
+            class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
+            <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6 text-slate-600"></i>
+          </button>
+          <div>
+            <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Printer Configuration</h2>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-[10px] md:text-sm text-slate-400 font-medium">Hardware Setup</span>
+              <span class="w-1 h-1 bg-slate-300 rounded-full"></span>
+              <span class="text-[10px] md:text-sm text-blue-900 font-bold uppercase tracking-widest">Network</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button @click="saveSettings()" class="flex items-center gap-2 px-6 py-3 bg-red-600 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 hover:bg-red-700 transition-all active:scale-95 group">
+            <i data-lucide="save" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+            <span class="hidden sm:inline">Save Configuration</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="p-8 space-y-8">
+        <div class="bg-white/50 backdrop-blur-xl rounded-[3.5rem] shadow-xl shadow-slate-200/40 border border-white/50 overflow-hidden animate-bento">
+          <!-- Input Fields -->
+          <div class="p-10 sm:p-14 space-y-12">
           
-          <!-- Name Input -->
-          <div class="space-y-2">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Name</label>
-            <input type="text" x-model="printerName" placeholder="e.g. Epson" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-medium">
-          </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <!-- Name Input -->
+                <div class="space-y-4">
+                  <label class="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Device Label</label>
+                  <div class="relative group">
+                    <i data-lucide="tag" class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5 group-focus-within:text-blue-900 transition-colors"></i>
+                    <input type="text" x-model="printerName" placeholder="e.g. Sales Receipt Printer" class="w-full pl-14 pr-6 py-5 bg-white/80 border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-blue-900/5 focus:border-blue-900 transition-all font-bold text-slate-700 shadow-sm">
+                  </div>
+                </div>
 
-          <!-- Printer Model -->
-          <div class="space-y-2">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Printer model</label>
-            <div class="relative">
-              <select x-model="printerModel" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-teal-500/5 focus:border-teal-500 transition-all font-medium appearance-none">
-                <option>Epson TM-P20 (Bluetooth)</option>
-                <option>Generic Thermal Printer (Bluetooth)</option>
-                <option>Star Micronics (Bluetooth)</option>
-              </select>
-              <i data-lucide="chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none"></i>
+                <!-- Printer Model -->
+                <div class="space-y-4">
+                  <label class="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Hardware Profile</label>
+                  <div class="relative group">
+                    <i data-lucide="settings" class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5 group-focus-within:text-blue-900 transition-colors"></i>
+                    <select x-model="printerModel" class="w-full pl-14 pr-12 py-5 bg-white/80 border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-blue-900/5 focus:border-blue-900 transition-all font-bold text-slate-700 appearance-none shadow-sm shadow-slate-200/10">
+                      <option>Epson TM-P20 (Bluetooth)</option>
+                      <option>Generic Thermal Printer (Bluetooth)</option>
+                      <option>Star Micronics (Bluetooth)</option>
+                    </select>
+                    <i data-lucide="chevron-down" class="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none"></i>
+                  </div>
+                </div>
             </div>
-          </div>
 
-          <!-- Bluetooth Printer Selection -->
-          <div class="space-y-2">
-            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bluetooth printer</label>
-            <div class="flex gap-2">
-              <input type="text" x-model="bluetoothDevice" readonly placeholder="Connect to a printer..." class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none transition-all font-medium text-slate-500">
-              <button @click="searchBluetooth()" class="px-6 py-3 bg-teal-600 text-white font-bold rounded-2xl hover:bg-teal-700 active:scale-95 transition-all flex items-center gap-2">
-                <template x-if="!isSearching">
-                  <span class="text-sm">SEARCH</span>
-                </template>
-                <template x-if="isSearching">
-                  <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
-                </template>
-              </button>
-            </div>
-            
-            <!-- Connection Status -->
-            <div class="mt-2 flex items-center gap-2 px-1">
-              <span :class="{
-                'bg-emerald-500 animate-pulse': printerStatus === 'ready',
-                'bg-amber-500 animate-bounce': printerStatus === 'connecting',
-                'bg-rose-500': printerStatus === 'disconnected'
-              }" class="w-2 h-2 rounded-full"></span>
-              <span class="text-[10px] font-black uppercase tracking-widest text-slate-400" x-text="printerStatus === 'ready' ? 'Connected & Ready' : (printerStatus === 'connecting' ? 'Connecting...' : 'Disconnected')"></span>
-            </div>
-            
-            <!-- Compatibility Warning -->
-            <template x-if="!navigator.bluetooth">
-              <div class="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-                 <div class="flex items-start gap-3">
-                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
-                    <div>
-                       <p class="text-xs font-bold text-amber-800">Browser Limitation</p>
-                       <p class="text-[11px] text-amber-700 mt-1 leading-relaxed">
-                          Bluetooth is NOT supported on iPhones/iPads or Safari. 
-                          <span class="font-bold">Use an Android device, a Desktop PC/Laptop</span>, or download the 
-                          <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822234" target="_blank" class="underline font-black">Bluefy Browser</a> 
-                          on iOS to use Bluetooth printers.
-                       </p>
+            <!-- Bluetooth Printer Selection -->
+            <div class="space-y-4 bg-white/40 p-10 rounded-[2.5rem] border border-white/60 shadow-inner">
+              <label class="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Network Discovery</label>
+              <div class="flex flex-col sm:flex-row gap-4">
+                <div class="relative flex-1 group">
+                    <i data-lucide="bluetooth" class="absolute left-6 top-1/2 -translate-y-1/2 text-blue-900 w-6 h-6 animate-pulse"></i>
+                    <input type="text" x-model="bluetoothDevice" readonly placeholder="Pair with hardware..." class="w-full pl-16 pr-8 py-6 bg-white border-slate-100 rounded-4xl focus:outline-none transition-all font-black text-slate-500 shadow-xl shadow-blue-900/5 border-dashed border-2">
+                </div>
+                <button @click="searchBluetooth()" class="px-10 py-6 bg-blue-900 text-white font-black rounded-4xl hover:bg-blue-800 active:scale-95 transition-all flex items-center justify-center gap-3 shadow-2xl shadow-blue-900/30">
+                  <template x-if="!isSearching">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="radar" class="w-5 h-5"></i>
+                        <span class="text-sm tracking-widest">CONNECT</span>
                     </div>
-                 </div>
+                  </template>
+                  <template x-if="isSearching">
+                    <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
+                  </template>
+                </button>
               </div>
-            </template>
-          </div>
 
-          <!-- Toggles -->
-          <div class="space-y-4 pt-4">
-            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <span class="text-sm font-bold text-slate-700">Print receipts and bills</span>
-              <button @click="printReceipts = !printReceipts" :class="printReceipts ? 'bg-teal-600' : 'bg-slate-300'" class="w-12 h-6 rounded-full relative transition-colors">
-                <div :class="printReceipts ? 'translate-x-6' : 'translate-x-0'" class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></div>
-              </button>
+              <!-- Connection Status -->
+              <div class="mt-2 flex items-center gap-2 px-1">
+                <span :class="{
+                  'bg-emerald-500 animate-pulse': printerStatus === 'ready',
+                  'bg-amber-500 animate-bounce': printerStatus === 'connecting',
+                  'bg-rose-500': printerStatus === 'disconnected'
+                }" class="w-2 h-2 rounded-full"></span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400" x-text="printerStatus === 'ready' ? 'Connected & Ready' : (printerStatus === 'connecting' ? 'Connecting...' : 'Disconnected')"></span>
+              </div>
+              
+              <!-- Compatibility Warning -->
+              <template x-if="!navigator.bluetooth">
+                <div class="mt-6 p-6 bg-amber-50/50 backdrop-blur-sm border border-amber-100/50 rounded-4xl">
+                   <div class="flex items-start gap-4">
+                      <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+                        <i data-lucide="alert-circle" class="w-6 h-6 text-amber-600"></i>
+                      </div>
+                      <div>
+                         <p class="text-xs font-black text-amber-800 uppercase tracking-widest">Protocol Restriction</p>
+                         <p class="text-[12px] text-amber-700/80 mt-1 leading-relaxed font-bold">
+                            Bluetooth LE is disabled by Apple on Safari. Use <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822234" target="_blank" class="text-blue-900 underline decoration-2">Bluefy Browser</a> for iOS compatibility.
+                         </p>
+                      </div>
+                   </div>
+                </div>
+              </template>
             </div>
 
-            <div class="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <span class="text-sm font-bold text-slate-700">Print orders</span>
-              <button @click="printOrders = !printOrders" :class="printOrders ? 'bg-teal-600' : 'bg-slate-300'" class="w-12 h-6 rounded-full relative transition-colors">
-                <div :class="printOrders ? 'translate-x-6' : 'translate-x-0'" class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></div>
+            <!-- Toggles -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div class="flex items-center justify-between p-8 bg-white/60 rounded-[2.5rem] border border-white/80 shadow-sm group hover:border-blue-900/30 transition-colors">
+                <div class="flex flex-col">
+                    <span class="text-sm font-black text-slate-800 uppercase tracking-tight">Bill Printing</span>
+                    <span class="text-[11px] text-slate-400 font-bold mt-1">Automatic receipt generation</span>
+                </div>
+                <button @click="printReceipts = !printReceipts" :class="printReceipts ? 'bg-red-600' : 'bg-slate-200'" class="w-16 h-9 rounded-full relative transition-all duration-500 shadow-lg">
+                  <div :class="printReceipts ? 'translate-x-8 shadow-inner shadow-red-900/20' : 'translate-x-1'" class="absolute left-0 top-1 w-7 h-7 bg-white rounded-full transition-transform shadow-md"></div>
+                </button>
+              </div>
+
+              <div class="flex items-center justify-between p-8 bg-white/60 rounded-[2.5rem] border border-white/80 shadow-sm group hover:border-blue-900/30 transition-colors">
+                <div class="flex flex-col">
+                    <span class="text-sm font-black text-slate-800 uppercase tracking-tight">Order Tickets</span>
+                    <span class="text-[11px] text-slate-400 font-bold mt-1">Pharmacy fulfillment queue</span>
+                </div>
+                <button @click="printOrders = !printOrders" :class="printOrders ? 'bg-red-600' : 'bg-slate-200'" class="w-16 h-9 rounded-full relative transition-all duration-500 shadow-lg">
+                  <div :class="printOrders ? 'translate-x-8 shadow-inner shadow-red-900/20' : 'translate-x-1'" class="absolute left-0 top-1 w-7 h-7 bg-white rounded-full transition-transform shadow-md"></div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Print Test Button -->
+            <div class="pt-10 flex justify-center">
+              <button @click="printTest()" class="group px-12 py-6 flex items-center gap-4 text-blue-900 hover:bg-white/80 rounded-[3rem] transition-all border-4 border-double border-blue-100 hover:border-blue-900 font-black text-[13px] uppercase tracking-[0.2em] shadow-xl hover:shadow-blue-900/5">
+                <i data-lucide="printer" class="w-7 h-7 group-hover:-rotate-6 transition-transform"></i>
+                <span>Diagnostics Test</span>
               </button>
             </div>
-          </div>
-
-          <!-- Print Test Button -->
-          <div class="pt-6">
-            <button @click="printTest()" class="w-full py-4 flex items-center justify-center gap-3 text-slate-600 hover:bg-slate-50 rounded-2xl transition-all border border-slate-200 font-bold">
-              <i data-lucide="printer" class="w-5 h-5"></i>
-              <span>PRINT TEST</span>
-            </button>
-          </div>
 
         </div>
       </div>
