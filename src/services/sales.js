@@ -1,4 +1,4 @@
-import { collection, query, orderBy, onSnapshot, addDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
 import { db } from "../firebase.js";
 
 const SALES_COLLECTION = "salesHistory";
@@ -29,6 +29,32 @@ export const saveSaleData = async (saleData) => {
     return docRef.id;
   } catch (error) {
     console.error("Error saving sale transaction: ", error);
+    throw error;
+  }
+};
+// Update a sale transaction status (e.g. mark as refunded)
+export const updateSaleStatus = async (saleId, status) => {
+  try {
+    const saleRef = doc(db, SALES_COLLECTION, saleId);
+    await updateDoc(saleRef, { status: status });
+    return true;
+  } catch (error) {
+    console.error("Error updating sale status: ", error);
+    throw error;
+  }
+};
+
+// Update partial refund for a specific item in a sale
+export const updateSaleItemRefund = async (saleId, items, overallStatus) => {
+  try {
+    const saleRef = doc(db, SALES_COLLECTION, saleId);
+    await updateDoc(saleRef, { 
+      items: items,
+      status: overallStatus 
+    });
+    return true;
+  } catch (error) {
+    console.error("Error updating partial refund: ", error);
     throw error;
   }
 };

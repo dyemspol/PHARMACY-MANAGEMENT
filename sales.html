@@ -44,15 +44,18 @@
                             rawId: data.id,
                             date: data.date,
                             time: data.time,
+                            status: data.status || 'Completed',
                             items: `${count} item(s)`,
                             units: `${data.unitsCount || data.units || count} units`,
                             discount: '₱' + disc.toFixed(2),
                             subtotal: '₱' + (net + disc).toFixed(2),
                             total: data.total || ('₱' + net.toFixed(2)),
                             cart: itemsArray.map(i => ({
+                                id: i.id || null,
                                 name: i.name,
                                 category: i.category || 'General',
                                 quantity: i.quantityPurchased || i.quantity || 1,
+                                quantityRefunded: i.quantityRefunded || 0,
                                 price: i.price || (typeof i.sellingPrice === 'string' ? parseFloat(i.sellingPrice.replace('₱','')) : i.sellingPrice) || 0
                             }))
                         };
@@ -97,11 +100,13 @@
     },
     selectedSale: {
       id: '',
+      rawId: '',
       date: '',
       subtotal: '₱0.00',
       discount: '₱0.00',
       total: '₱0.00',
       itemsCount: 0,
+      status: 'Completed',
       items: []
     },
     searchQuery: '',
@@ -136,6 +141,108 @@
     },
     goToPage(page) {
         this.currentPage = page;
+    },
+    get selectedSaleNetTotal() {
+        if (!this.selectedSale.items) return '₱0.00';
+        const net = this.selectedSale.items.reduce((sum, item) => {
+            return sum + ((item.quantity - (item.quantityRefunded || 0)) * item.price);
+        }, 0);
+        return '₱' + net.toFixed(2);
+    },
+    async refundSelectedSale() {
+        if (!this.selectedSale || !this.selectedSale.rawId) return;
+        if (!confirm('Are you sure you want to refund this transaction? This will return all remaining items to the inventory and mark this sale as Refunded.')) return;
+        
+        try {
+            this.isLoading = true;
+            
+            // 1. Identify remaining quantities to refund
+            const itemsToReturn = this.selectedSale.items
+                .map(it => ({ ...it, quantity: it.quantity - (it.quantityRefunded || 0) }))
+                .filter(it => it.quantity > 0);
+            
+            if (itemsToReturn.length > 0) {
+                // Return remaining to inventory
+                await window.db.returnItemsToInventory(itemsToReturn);
+            }
+
+            // 2. Mark all as fully refunded
+            const updatedItems = this.selectedSale.items.map(it => ({
+                ...it,
+                quantityPurchased: it.quantity,
+                quantityRefunded: it.quantity
+            }));
+            
+            // 3. Update Firestore
+            await window.salesDb.updateSaleItemRefund(this.selectedSale.rawId, updatedItems, 'Refunded');
+            
+            this.saleDetailsModal = false;
+            alert('Full refund processed successfully!');
+        } catch (error) {
+            console.error('Refund error:', error);
+            alert('Error processing refund: ' + error.message);
+        } finally {
+            this.isLoading = false;
+        }
+    },
+    async refundSaleItem(item, index) {
+        const remaining = item.quantity - item.quantityRefunded;
+        if (remaining <= 0) return;
+        
+        const refundQty = parseInt(prompt(`How many units of ${item.name} to refund? (Max: ${remaining})`, remaining));
+        if (isNaN(refundQty) || refundQty <= 0 || refundQty > remaining) {
+            if (refundQty !== null) alert('Invalid quantity');
+            return;
+        }
+
+        try {
+            this.isLoading = true;
+            
+            // 1. Return to inventory
+            await window.db.returnItemsToInventory([{
+                id: item.id,
+                name: item.name,
+                quantity: refundQty
+            }]);
+            
+            // 2. Prepare updated items array
+            const updatedItems = this.selectedSale.items.map((it, idx) => {
+                if (idx === index) {
+                    return { ...it, quantityRefunded: it.quantityRefunded + refundQty };
+                }
+                // Handle cases where existing items don't have all fields
+                return { ...it, quantityPurchased: it.quantity, quantityRefunded: it.quantityRefunded || 0 };
+            });
+
+            // 3. Determine overall status
+            const allRefunded = updatedItems.every(it => it.quantityRefunded >= it.quantity);
+            const overallStatus = allRefunded ? 'Refunded' : 'Completed';
+            
+            // 4. Update sale record (we pass the raw items structure Firestore expects)
+            // Note: sales.js updateSaleItemRefund takes the items array
+            const firestoreItems = updatedItems.map(it => ({
+                id: it.id,
+                name: it.name,
+                category: it.category,
+                price: it.price,
+                costPrice: it.costPrice || 0, // Keep existing costPrice if possible
+                quantityPurchased: it.quantity,
+                quantityRefunded: it.quantityRefunded
+            }));
+
+            await window.salesDb.updateSaleItemRefund(this.selectedSale.rawId, firestoreItems, overallStatus);
+            
+            // Update local state
+            this.selectedSale.items = updatedItems;
+            this.selectedSale.status = overallStatus;
+            
+            alert(`Successfully refunded ${refundQty} units of ${item.name}`);
+        } catch (error) {
+            console.error('Partial refund error:', error);
+            alert('Error: ' + error.message);
+        } finally {
+            this.isLoading = false;
+        }
     }
   }">
     
@@ -191,9 +298,12 @@
             </div>
              <div>
               <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Status</p>
-              <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-tighter italic border border-emerald-100/50">
-                <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                Completed
+              <span 
+                :class="selectedSale.status === 'Refunded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'"
+                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter italic border"
+              >
+                <span :class="selectedSale.status === 'Refunded' ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'" class="w-1.5 h-1.5 rounded-full"></span>
+                <span x-text="selectedSale.status"></span>
               </span>
             </div>
           </section>
@@ -206,7 +316,7 @@
           </div>
           
           <div class="space-y-3 max-h-48 overflow-y-auto hide-scrollbar pr-2">
-            <template x-for="item in selectedSale.items">
+            <template x-for="(item, index) in selectedSale.items">
               <div class="flex justify-between items-center bg-slate-50/50 p-4 rounded-3xl border border-slate-100 group hover:border-teal-500/20 transition-all">
                 <div class="flex items-center gap-4">
                   <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
@@ -218,9 +328,21 @@
                   </div>
                 </div>
 
-                <div class="text-right">
-                  <p class="text-xs font-bold text-slate-500" x-text="`${item.quantity} x ₱${item.price.toFixed(2)}`"></p>
-                  <p class="text-sm font-black text-teal-600 mt-0.5 tracking-tight" x-text="`₱${(item.quantity * item.price).toFixed(2)}`"></p>
+                <div class="text-right flex items-center gap-4">
+                  <div class="text-right">
+                    <p class="text-xs font-bold text-slate-500" x-text="`${item.quantity} x ₱${item.price.toFixed(2)}`"></p>
+                    <template x-if="item.quantityRefunded > 0">
+                      <p class="text-[9px] font-bold text-rose-500 uppercase tracking-tighter" x-text="`Refunded: ${item.quantityRefunded}`"></p>
+                    </template>
+                    <p class="text-sm font-black text-teal-600 mt-0.5 tracking-tight" x-text="`₱${((item.quantity - item.quantityRefunded) * item.price).toFixed(2)}`"></p>
+                  </div>
+                  
+                  <!-- Per-item Refund Button -->
+                  <template x-if="item.quantityRefunded < item.quantity">
+                    <button @click="refundSaleItem(item, index)" class="w-8 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all border border-rose-100/50" title="Refund this product">
+                      <i class="hgi hgi-stroke hgi-left-to-right-list-bullet text-[12px]"></i>
+                    </button>
+                  </template>
                 </div>
               </div>
             </template>
@@ -232,13 +354,21 @@
              <p class="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Grand Total (Paid)</p>
              <p class="text-slate-400 text-[10px] font-bold">Successfully Received</p>
            </div>
-           <p class="font-black text-3xl text-emerald-600 tracking-tighter" x-text="selectedSale.total"></p>
+            <p class="font-black text-3xl text-emerald-600 tracking-tighter" x-text="selectedSaleNetTotal"></p>
         </section>
         
         <hr class="my-8 border-slate-100">
 
         <section class="flex justify-end gap-3">
           <button @click="saleDetailsModal = false" class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all text-sm">Close Window</button>
+          
+          <template x-if="selectedSale.status !== 'Refunded'">
+            <button @click="refundSelectedSale" class="px-8 py-3 bg-rose-50 text-rose-600 border border-rose-100 font-bold rounded-2xl hover:bg-rose-600 hover:text-white transition-all text-sm flex items-center gap-2 group">
+              <i class="hgi hgi-stroke hgi-left-to-right-list-bullet group-hover:-translate-x-0.5 transition-transform"></i>
+              <span>Refund Transaction</span>
+            </button>
+          </template>
+
           <button class="px-8 py-3 bg-teal-600 text-white font-bold rounded-2xl shadow-lg shadow-teal-500/20 hover:bg-teal-700 transition-all text-sm flex items-center gap-2 group">
             <i class="hgi hgi-stroke hgi-download-01 group-hover:-translate-y-0.5 transition-transform"></i>
             <span>Download Invoice</span>
@@ -401,8 +531,9 @@
                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Timestamp</th>
                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Items Detail</th>
                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Discount</th>
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Final Total</th>
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Final Total</th>
+                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Status</th>
+                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100/50">
@@ -444,10 +575,18 @@
                     <td class="px-8 py-6 text-right">
                       <span class="text-lg font-black text-teal-600 tracking-tight" x-text="sale.total"></span>
                     </td>
+                    <td class="px-8 py-6 text-center">
+                      <span 
+                        :class="sale.status === 'Refunded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter border"
+                      >
+                        <span x-text="sale.status"></span>
+                      </span>
+                    </td>
                     <td class="px-8 py-6">
                       <div class="flex items-center justify-center gap-3">
                         <button 
-                          @click="selectedSale = { id: sale.id, date: sale.date + ' ' + sale.time, total: sale.total, discount: sale.discount, subtotal: sale.subtotal, itemsCount: parseInt(sale.items), items: sale.cart }; saleDetailsModal = true"
+                          @click="selectedSale = { id: sale.id, rawId: sale.rawId, date: sale.date + ' ' + sale.time, total: sale.total, discount: sale.discount, subtotal: sale.subtotal, itemsCount: parseInt(sale.items), items: sale.cart, status: sale.status }; saleDetailsModal = true"
                           class="w-10 h-10 flex items-center justify-center bg-teal-50 text-teal-600 rounded-xl hover:bg-teal-600 hover:text-white transition-all shadow-sm cursor-pointer"
                         >
                           <i data-lucide="eye" class="w-4 h-4 pointer-events-none"></i>

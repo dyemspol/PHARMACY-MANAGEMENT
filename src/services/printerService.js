@@ -19,8 +19,15 @@ class PrinterService {
       underlineOn: new Uint8Array([0x1b, 0x2d, 0x01]),
       underlineOff: new Uint8Array([0x1b, 0x2d, 0x00]),
       feedAndCut: new Uint8Array([0x1d, 0x56, 0x41, 0x03]),
+      partialCut: new Uint8Array([0x1d, 0x56, 0x01]),
       lineFeed: new Uint8Array([0x0a]),
     };
+
+    this.onStatusChange = null;
+  }
+
+  isConnected() {
+    return !!this.characteristic;
   }
 
   async connect() {
@@ -55,6 +62,7 @@ class PrinterService {
         if (writeChar) {
           this.characteristic = writeChar;
           console.log('Connected to characteristic:', writeChar.uuid);
+          if (this.onStatusChange) this.onStatusChange('ready');
           break;
         }
       }
@@ -70,7 +78,48 @@ class PrinterService {
       return this.device;
     } catch (error) {
       console.error('Bluetooth Connection Error:', error);
+      if (this.onStatusChange) this.onStatusChange('disconnected');
       throw error;
+    }
+  }
+
+  async reconnect() {
+    try {
+      if (!navigator.bluetooth || !navigator.bluetooth.getDevices) {
+        console.warn('getDevices() not supported');
+        return false;
+      }
+
+      const devices = await navigator.bluetooth.getDevices();
+      const savedId = localStorage.getItem('bluetoothDeviceId');
+      
+      const device = devices.find(d => d.id === savedId);
+      if (!device) return false;
+
+      console.log('Attempting to reconnect to:', device.name || device.id);
+      if (this.onStatusChange) this.onStatusChange('connecting');
+
+      this.device = device;
+      this.server = await this.device.gatt.connect();
+
+      const services = await this.server.getPrimaryServices();
+      for (const service of services) {
+        const characteristics = await service.getCharacteristics();
+        const writeChar = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
+        if (writeChar) {
+          this.characteristic = writeChar;
+          console.log('Successfully reconnected to printer characteristic');
+          if (this.onStatusChange) this.onStatusChange('ready');
+          return true;
+        }
+      }
+      
+      if (this.onStatusChange) this.onStatusChange('disconnected');
+      return false;
+    } catch (error) {
+      console.error('Reconnection failed:', error);
+      if (this.onStatusChange) this.onStatusChange('disconnected');
+      return false;
     }
   }
 
@@ -109,47 +158,66 @@ class PrinterService {
     add(this.commands.init);
     add(this.commands.alignCenter);
     add(this.commands.boldOn);
-    text('DavaoDeOro\n');
+    text('RIGHT MEDS\n');
     add(this.commands.boldOff);
-    text('Pharmacy Management\n');
-    text('--------------------------------\n');
+    text('PHARMACY AND MEDICAL SUPPLY\n\n');
+    text('Right Meds Pharmacy and Medical\n');
+    text('Supply\n');
+    text('Mendez Town Square, Townsite,\n');
+    text('Kingking Pantukan, Davao de Oro\n\n');
+    text('TEL# 084-817-0874\n\n');
     
     add(this.commands.alignLeft);
-    text(`Date: ${new Date().toLocaleString()}\n`);
-    text(`TRX ID: ${receiptData.transactionId || 'N/A'}\n`);
+    const employee = receiptData.cashierName || 'Admin / Cashier';
+    text(`Employee: ${employee}\n`);
+    text(`POS: BELLE\n`);
     text('--------------------------------\n');
     
-    add(this.commands.boldOn);
-    text('Item             Qty      Total\n');
-    add(this.commands.boldOff);
-    
     receiptData.items.forEach(item => {
-      const name = item.name.substring(0, 15).padEnd(16);
-      const qty = item.quantity.toString().padEnd(8);
-      const total = 'P' + (item.price * item.quantity).toFixed(2);
-      text(`${name} ${qty} ${total}\n`);
+      // e.g. Hovicor cream 15gm          P450.00
+      const name = item.name.substring(0, 22);
+      const totalStr = 'P' + (item.price * item.quantity).toFixed(2);
+      const spaces = Math.max(1, 32 - name.length - totalStr.length);
+      text(`${name}${(' ').repeat(spaces)}${totalStr}\n`);
+      
+      // e.g. 2 x P225.00
+      text(`${item.quantity} x P${item.price.toFixed(2)}\n`);
+      text('\n');
     });
     
     text('--------------------------------\n');
-    add(this.commands.alignRight);
-    text(`Subtotal: P${receiptData.subtotal.toFixed(2)}\n`);
     if (receiptData.discount > 0) {
-      text(`Discount: -P${receiptData.discount.toFixed(2)}\n`);
+      const discStr = `-P${receiptData.discount.toFixed(2)}`;
+      const spacesDisc = Math.max(1, 32 - 14 - discStr.length);
+      text(`Senior Citizen${(' ').repeat(spacesDisc)}${discStr}\n`);
+      text('--------------------------------\n');
     }
+    
     add(this.commands.boldOn);
-    text(`NET TOTAL: P${receiptData.total.toFixed(2)}\n`);
+    const totalStr = 'P' + receiptData.total.toFixed(2);
+    const spacesTotal = Math.max(1, 32 - 5 - totalStr.length);
+    text(`Total${(' ').repeat(spacesTotal)}${totalStr}\n\n`);
     add(this.commands.boldOff);
     
-    text(`Cash: P${receiptData.cash.toFixed(2)}\n`);
-    text(`Change: P${receiptData.change.toFixed(2)}\n`);
+    const cashStr = 'P' + receiptData.cash.toFixed(2);
+    const spacesCash = Math.max(1, 32 - 4 - cashStr.length);
+    text(`Cash${(' ').repeat(spacesCash)}${cashStr}\n`);
+    
+    const changeStr = 'P' + receiptData.change.toFixed(2);
+    const spacesChange = Math.max(1, 32 - 6 - changeStr.length);
+    text(`Change${(' ').repeat(spacesChange)}${changeStr}\n`);
+    
+    text('--------------------------------\n');
+    add(this.commands.alignCenter);
+    text('TRANSACTION RECEIPT ONLY !!!\n\n\n');
+    text('THANK YOU!!!\n\n');
+    text(`${new Date().toLocaleString()}\n`);
     
     add(this.commands.lineFeed);
-    add(this.commands.alignCenter);
-    text('Thank you for choosing us!\n');
-    text('Stay Healthy!\n');
     add(this.commands.lineFeed);
     add(this.commands.lineFeed);
     add(this.commands.lineFeed);
+    add(this.commands.partialCut);
     add(this.commands.feedAndCut);
 
     return await this.print(new Uint8Array(buffer));
@@ -163,9 +231,9 @@ class PrinterService {
     add(this.commands.init);
     add(this.commands.alignCenter);
     add(this.commands.boldOn);
-    text('PRINTER TEST PAGE\n');
+    text('RIGHT MEDS\n');
     add(this.commands.boldOff);
-    text('DavaoDeOro Pharmacy\n');
+    text('PHARMACY AND MEDICAL SUPPLY\n');
     text('--------------------------------\n');
     add(this.commands.alignLeft);
     text('Status: ONLINE\n');
@@ -178,6 +246,11 @@ class PrinterService {
     text('!@#$%^&*()\n');
     add(this.commands.lineFeed);
     add(this.commands.lineFeed);
+    add(this.commands.lineFeed);
+    add(this.commands.lineFeed);
+    add(this.commands.lineFeed);
+    add(this.commands.lineFeed);
+    add(this.commands.partialCut);
     add(this.commands.feedAndCut);
 
     return await this.print(new Uint8Array(buffer));

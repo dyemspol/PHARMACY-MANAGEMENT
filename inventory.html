@@ -38,7 +38,7 @@
       deleteConfirmOpen: false,
       searchTerm: '',
       newMedicine: { name: '', brandName: '', strength: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
-      newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
       editingMedicine: { name: '', brandName: '', strength: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
       editingKind: 'Medicine',
       editingId: null,
@@ -166,7 +166,7 @@
         const colors = ['bg-teal-50 text-teal-600', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
         
-        const finalName = this.newMedicine.name + (this.newMedicine.strength ? ' ' + this.newMedicine.strength + 'mg' : '');
+        const finalName = this.newMedicine.name + (this.newMedicine.strength ? ' ' + this.newMedicine.strength : '');
         
         const itemToSave = {
           name: finalName,
@@ -209,7 +209,7 @@
           kind: 'General',
           barcode: this.newGeneralItem.barcode || 'N/A',
           category: this.newGeneralItem.category,
-          type: 'N/A',
+          type: this.newGeneralItem.type || 'Medical Supply',
           batch: this.newGeneralItem.batch || ('G-' + Math.floor(Math.random() * 1000)),
           supplier: this.newGeneralItem.supplier || 'N/A',
           stock: this.newGeneralItem.stock + ' units',
@@ -225,7 +225,7 @@
           itemToSave.id = newId;
           
           this.medicines.unshift(itemToSave);
-          this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
+          this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
           this.addGeneralModalOpen = false;
           this.$nextTick(() => lucide.createIcons());
         } catch (err) {
@@ -241,10 +241,16 @@
         const sellingVal = window.db.parseCurrency(medicine.sellingPrice);
         let cleanName = medicine.name;
         let strengthVal = '';
-        const match = medicine.name.match(/(.+) (\d+)mg$/);
-        if (match) {
-          cleanName = match[1];
-          strengthVal = match[2];
+        // Handle both with and without 'mg' for legacy data
+        const matchMg = medicine.name.match(/(.+) (\d+)mg$/);
+        const matchBare = medicine.name.match(/(.+) (\d+)$/);
+        
+        if (matchMg) {
+          cleanName = matchMg[1];
+          strengthVal = matchMg[2];
+        } else if (matchBare) {
+          cleanName = matchBare[1];
+          strengthVal = matchBare[2];
         }
 
         this.editingMedicine = { 
@@ -266,7 +272,7 @@
       async saveEdit() {
         if (!this.editingId) return;
         
-        const finalName = this.editingMedicine.name + (this.editingMedicine.strength ? ' ' + this.editingMedicine.strength + 'mg' : '');
+        const finalName = this.editingMedicine.name + (this.editingMedicine.strength ? ' ' + this.editingMedicine.strength : '');
         
         const updatedData = {
           name: finalName,
@@ -283,6 +289,8 @@
         };
         
         if (this.editingKind === 'Medicine') {
+          updatedData.type = this.editingMedicine.type;
+        } else if (this.editingKind === 'General') {
           updatedData.type = this.editingMedicine.type;
         }
 
@@ -515,6 +523,9 @@
                             Medicine</th>
                           <th
                             class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
+                            Strength</th>
+                          <th
+                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
                             Type</th>
                           <th
                             class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
@@ -538,7 +549,7 @@
                       <tbody class="divide-y divide-slate-100/50">
                         <template x-if="isLoading">
                            <tr>
-                              <td colspan="8" class="px-8 py-10 text-center text-slate-400 font-bold">
+                              <td colspan="9" class="px-8 py-10 text-center text-slate-400 font-bold">
                                   <i data-lucide="loader-2" class="w-10 h-10 mx-auto mb-2 opacity-50 animate-spin"></i>
                                   Loading medical inventory...
                               </td>
@@ -546,7 +557,7 @@
                         </template>
                         <template x-if="!isLoading && filteredMedicinesOnly.length === 0">
                            <tr>
-                              <td colspan="8" class="px-8 py-10 text-center text-slate-400 font-bold">
+                              <td colspan="9" class="px-8 py-10 text-center text-slate-400 font-bold">
                                   <i data-lucide="package-x" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
                                   No medicines available yet.
                               </td>
@@ -571,6 +582,10 @@
                                     x-text="medicine.category"></span>
                                 </div>
                               </div>
+                            </td>
+                            <td class="px-8 py-6 text-center">
+                              <span class="text-sm font-bold text-slate-600" 
+                                    x-text="medicine.strength || (medicine.name.match(/\d+\s?(mg)?$/i) ? medicine.name.match(/\d+\s?(mg)?$/i)[0].replace(/mg$/i, '') : 'N/A')"></span>
                             </td>
                             <td class="px-8 py-6 text-center">
                               <span :class="medicine.type === 'Branded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-teal-50 text-teal-600 border-teal-100/50'"
@@ -648,6 +663,9 @@
                             Batch / Category</th>
                           <th
                             class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
+                            Type</th>
+                          <th
+                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
                             QTY</th>
                           <th
                             class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
@@ -665,7 +683,7 @@
                       <tbody class="divide-y divide-slate-100/50">
                         <template x-if="isLoading">
                            <tr>
-                              <td colspan="7" class="px-8 py-10 text-center text-slate-400 font-bold">
+                              <td colspan="8" class="px-8 py-10 text-center text-slate-400 font-bold">
                                   <i data-lucide="loader-2" class="w-10 h-10 mx-auto mb-2 opacity-50 animate-spin"></i>
                                   Loading general items...
                               </td>
@@ -673,7 +691,7 @@
                         </template>
                         <template x-if="!isLoading && filteredGeneralItemsOnly.length === 0">
                            <tr>
-                              <td colspan="7" class="px-8 py-10 text-center text-slate-400 font-bold">
+                              <td colspan="8" class="px-8 py-10 text-center text-slate-400 font-bold">
                                   <i data-lucide="package-x" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
                                   No general items available yet.
                               </td>
@@ -699,6 +717,11 @@
                                 <span class="text-sm font-bold text-slate-700" x-text="medicine.batch"></span>
                                 <span class="text-[11px] font-medium text-slate-400" x-text="medicine.category"></span>
                               </div>
+                            </td>
+                            <td class="px-8 py-6 text-center">
+                              <span :class="medicine.type === 'Grocery' ? 'bg-orange-50 text-orange-600 border-orange-100/50' : 'bg-blue-50 text-blue-600 border-blue-100/50'"
+                                class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-full border inline-block"
+                                x-text="medicine.type || 'Medical Supply'"></span>
                             </td>
                             <td class="px-8 py-6 text-center">
                               <span
@@ -777,9 +800,8 @@
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Strength</label>
                           <div class="relative">
-                            <input x-model="newMedicine.strength" type="text" placeholder="500"
-                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold pr-12">
-                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase">mg</span>
+                            <input x-model="newMedicine.strength" type="text" placeholder="e.g. 500"
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                           </div>
                         </div>
                       </div>
@@ -921,10 +943,23 @@
                         </div>
                       </div>
 
-                      <div class="space-y-2">
-                        <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
-                        <input x-model="newGeneralItem.expiryDate" type="date"
-                          class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                      <div class="grid grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Type</label>
+                          <div class="relative">
+                            <select x-model="newGeneralItem.type"
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                              <option value="Grocery">Grocery (Orange)</option>
+                              <option value="Medical Supply">Medical Supply (Blue)</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
+                          </div>
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
+                          <input x-model="newGeneralItem.expiryDate" type="date"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
                       </div>
 
                       <div class="grid grid-cols-3 gap-6">
@@ -995,8 +1030,7 @@
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Strength</label>
                           <div class="relative">
                             <input x-model="editingMedicine.strength" type="text"
-                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold pr-12">
-                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 uppercase">mg</span>
+                              class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                           </div>
                         </div>
                       </div>
@@ -1054,6 +1088,25 @@
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
                           <input x-model="editingMedicine.supplier" type="text"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-6" x-show="editingKind === 'General'">
+                        <div class="space-y-2">
+                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Type</label>
+                           <div class="relative">
+                              <select x-model="editingMedicine.type"
+                                 class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
+                                 <option value="Grocery">Grocery (Orange)</option>
+                                 <option value="Medical Supply">Medical Supply (Blue)</option>
+                              </select>
+                              <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
+                           </div>
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
+                          <input x-model="editingMedicine.expiryDate" type="date"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                       </div>

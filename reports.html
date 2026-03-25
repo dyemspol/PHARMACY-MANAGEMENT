@@ -44,6 +44,7 @@
           totalTransactions: 0,
           totalDiscounts: 0,
           actualRevenue: 0,
+          totalRefunds: 0,
           averageTransaction: 0,
           netProfit: 0,
           topSelling: [],
@@ -179,15 +180,26 @@
             const revenues = this.salesData.reduce((acc, sale) => {
               const paid = window.db.parseCurrency(sale.total);
               const disc = parseFloat(sale.discountApplied) || 0;
+              
+              // Calculate refunds for this sale
+              const items = Array.isArray(sale.items) ? sale.items : (sale.cart || []);
+              const refundAmount = items.reduce((rSum, item) => {
+                const itemPrice = item.price || 0;
+                const qtyRefunded = item.quantityRefunded || 0;
+                return rSum + (itemPrice * qtyRefunded);
+              }, 0);
+
               acc.gross += (paid + disc);
               acc.disc += disc;
               acc.paid += paid;
+              acc.refunds += refundAmount;
               return acc;
-            }, { gross: 0, disc: 0, paid: 0 });
+            }, { gross: 0, disc: 0, paid: 0, refunds: 0 });
 
             this.totalRevenue = revenues.gross;
             this.totalDiscounts = revenues.disc;
-            this.actualRevenue = revenues.paid;
+            this.totalRefunds = revenues.refunds;
+            this.actualRevenue = revenues.paid - revenues.refunds; // Actual cash on hand
             this.averageTransaction = this.totalTransactions > 0 ? (this.actualRevenue / this.totalTransactions) : 0;
             let exactCost = 0;
             this.salesData.forEach(s => {
@@ -197,7 +209,10 @@
                 if (typeof cost === 'string' && cost.includes('₱')) {
                   cost = parseFloat(cost.replace('₱', '').replace(',', '')) || 0;
                 }
-                const qty = item.quantityPurchased || item.quantity || 1;
+                const qtyPurchased = item.quantityPurchased || item.quantity || 1;
+                const qtyRefunded = item.quantityRefunded || 0;
+                const qty = qtyPurchased - qtyRefunded; // Only count non-refunded items for cost/profit
+                
                 const price = item.price || item.numericPrice || (typeof item.sellingPrice === 'string' ? parseFloat(item.sellingPrice.replace('₱','')) : 0) || 0;
                 exactCost += (cost > 0 ? (cost * qty) : (price * qty * 0.7));
               });
@@ -418,17 +433,30 @@
         <!-- Step 2: Metrics Visualization -->
         <div class="space-y-8">
             <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 animate-bento">
-              <div class="p-6 bg-emerald-50 rounded-4xl border border-emerald-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-emerald-500/5">
-                <div class="overflow-hidden">
-                  <p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 truncate">Total Revenue</p>
-                  <h3 class="text-xl font-black text-emerald-900 truncate" x-text="'₱' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+              <!-- Column 1: Revenue & Refunds -->
+              <div class="space-y-6">
+                <div class="p-6 bg-emerald-50 rounded-4xl border border-emerald-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-emerald-500/5">
+                  <div class="overflow-hidden">
+                    <p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1 truncate">Total Revenue</p>
+                    <h3 class="text-xl font-black text-emerald-900 truncate" x-text="'₱' + totalRevenue.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                  </div>
+                  <div class="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-600 shrink-0">
+                    <i data-lucide="line-chart" class="w-5 h-5"></i>
+                  </div>
                 </div>
-                <div class="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-600 shrink-0">
-                  <i data-lucide="line-chart" class="w-5 h-5"></i>
+
+                <div class="p-6 bg-orange-50 rounded-4xl border border-orange-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-orange-500/5">
+                  <div class="overflow-hidden">
+                    <p class="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-1 truncate">Total Refunds</p>
+                    <h3 class="text-xl font-black text-orange-900 truncate" x-text="'₱' + totalRefunds.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>
+                  </div>
+                  <div class="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-600 shrink-0">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                  </div>
                 </div>
               </div>
 
-              <div class="p-6 bg-rose-50 rounded-4xl border border-rose-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-rose-500/5">
+               <div class="p-6 bg-rose-50 rounded-4xl border border-rose-100 flex items-center justify-between group hover:scale-[1.02] transition-transform shadow-sm shadow-rose-500/5">
                 <div class="overflow-hidden">
                   <p class="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1 truncate">Discounts Given</p>
                   <h3 class="text-xl font-black text-rose-900 truncate" x-text="'₱' + totalDiscounts.toLocaleString('en-US', {minimumFractionDigits: 2})"></h3>

@@ -71,3 +71,32 @@ export const parseCurrency = (value) => {
 export const formatCurrency = (amount) => {
   return '₱' + (parseFloat(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
+// Return items to inventory (refund)
+export const returnItemsToInventory = async (items) => {
+  try {
+    const inventorySnapshot = await getDocs(collection(db, INVENTORY_COLLECTION));
+    const inventoryItems = [];
+    inventorySnapshot.forEach((doc) => {
+      inventoryItems.push({ id: doc.id, ...doc.data() });
+    });
+
+    for (const item of items) {
+      // Find item by ID first, then by name
+      let foundMed = inventoryItems.find(m => (item.id && m.id === item.id) || m.name === item.name);
+      
+      if (foundMed) {
+        let currentStockNum = parseStock(foundMed.stock);
+        let newStockNum = currentStockNum + (item.quantityPurchased || item.quantity || 0);
+        let newStockStr = newStockNum + ' units';
+        await updateInventoryItem(foundMed.id, { stock: newStockStr });
+      } else {
+        console.warn(`Could not find inventory item: ${item.name}`);
+      }
+    }
+    return true;
+  } catch (error) {
+    console.error("Error returning items to inventory: ", error);
+    throw error;
+  }
+};

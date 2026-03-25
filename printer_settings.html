@@ -46,6 +46,16 @@
     printReceipts: localStorage.getItem('printReceipts') === 'true',
     printOrders: localStorage.getItem('printOrders') === 'true',
     isSearching: false,
+    printerStatus: 'disconnected',
+
+    init() {
+      if (window.printerService) {
+        this.printerStatus = window.printerService.isConnected() ? 'ready' : 'disconnected';
+        window.printerService.onStatusChange = (status) => {
+          this.printerStatus = status;
+        };
+      }
+    },
 
     saveSettings() {
       localStorage.setItem('printerName', this.printerName);
@@ -144,6 +154,16 @@
                   <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
                 </template>
               </button>
+            </div>
+            
+            <!-- Connection Status -->
+            <div class="mt-2 flex items-center gap-2 px-1">
+              <span :class="{
+                'bg-emerald-500 animate-pulse': printerStatus === 'ready',
+                'bg-amber-500 animate-bounce': printerStatus === 'connecting',
+                'bg-rose-500': printerStatus === 'disconnected'
+              }" class="w-2 h-2 rounded-full"></span>
+              <span class="text-[10px] font-black uppercase tracking-widest text-slate-400" x-text="printerStatus === 'ready' ? 'Connected & Ready' : (printerStatus === 'connecting' ? 'Connecting...' : 'Disconnected')"></span>
             </div>
             
             <!-- Compatibility Warning -->
