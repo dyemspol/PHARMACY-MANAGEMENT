@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/img/logo.png" />
+    <link rel="icon" type="image/png" href="/src/img/riteMed.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Account Management | DavaoDeOro</title>
     <link href="/src/style.css" rel="stylesheet" />
@@ -114,7 +114,7 @@
     <div class="bg-mesh"></div>
 
     <!-- Create Account Modal -->
-    <div x-show="showCreateModal" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
+    <div x-show="showCreateModal" x-cloak class="fixed inset-0 z-100 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
         <div class="glass-card max-w-md w-full p-8 rounded-[2.5rem] shadow-2xl animate-bento" @click.away="showCreateModal = false">
             <div class="flex items-center justify-between mb-6">
                 <h3 class="text-2xl font-black text-slate-800 tracking-tight">Create Employee</h3>
@@ -155,15 +155,9 @@
     <!-- Sidebar -->
     <aside class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
-        <div class="p-8">
-          <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
-            <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
-              <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-cover">
-            </div>
-            <div>
-              <h1 class="text-xl font-extrabold tracking-tight text-slate-800 leading-none">DavaoDeOro</h1>
-              <span class="text-[10px] font-bold uppercase tracking-widest text-teal-600 mt-1 block">Pharmacy</span>
-            </div>
+        <div class="px-6 py-8">
+          <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
+            <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
           </a>
         </div>
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
@@ -177,7 +171,7 @@
           <a href="printer_settings.html" class="nav-link w-full"><i data-lucide="printer" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Printer Setup</span></a>
         </nav>
         <div class="p-6 mt-auto">
-          <button @click="window.auth.logout()" class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-[2rem] transition-all duration-300 font-bold text-sm group">
+          <button @click="window.auth.logout()" class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
             <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i><span>Logout Account</span>
           </button>
         </div>

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/img/logo.png" />
+    <link rel="icon" type="image/png" href="/src/img/riteMed.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sales History | DavaoDeOro</title>
     <link href="/src/style.css" rel="stylesheet" />
@@ -58,7 +58,11 @@
                         };
                     });
                     this.isLoading = false;
-                    setTimeout(() => { if(window.lucide) lucide.createIcons(); }, 50);
+                    this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
+
+                    // Re-initialize icons when page or search changes
+                    this.$watch('currentPage', () => this.$nextTick(() => { if(window.lucide) lucide.createIcons(); }));
+                    this.$watch('searchQuery', () => this.$nextTick(() => { if(window.lucide) lucide.createIcons(); }));
                 });
             }
         }, 100);
@@ -210,7 +214,7 @@
               <div class="flex justify-between items-center bg-slate-50/50 p-4 rounded-3xl border border-slate-100 group hover:border-teal-500/20 transition-all">
                 <div class="flex items-center gap-4">
                   <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                    <img class="w-6 h-6 object-contain opacity-40" src="/src/img/logo.png" alt="">
+                    <img class="w-6 h-6 object-contain opacity-40" src="/src/img/riteMed.png" alt="">
                   </div>
                   <div>
                     <p class="text-sm font-bold text-slate-800" x-text="item.name"></p>
@@ -286,15 +290,9 @@
       </button>
 
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
-        <div class="p-8">
-          <a href="index.html" class="flex items-center gap-4 group cursor-pointer transition-transform hover:scale-105">
-            <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl shadow-teal-500/10 border border-teal-50 overflow-hidden transition-transform group-hover:scale-110">
-              <img src="/src/img/logo.png" alt="Logo" class="w-full h-full object-cover">
-            </div>
-            <div>
-              <h1 class="text-xl font-extrabold tracking-tight text-slate-800 leading-none">DavaoDeOro</h1>
-              <span class="text-[10px] font-bold uppercase tracking-widest text-teal-600 mt-1 block">Pharmacy</span>
-            </div>
+        <div class="px-6 py-8">
+          <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
+            <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
           </a>
         </div>
 
