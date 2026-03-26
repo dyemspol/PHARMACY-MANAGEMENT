@@ -65,12 +65,12 @@ export const parseStock = (stock) => {
 export const parseCurrency = (value) => {
   if (typeof value === 'number') return value;
   if (!value) return 0;
-  return parseFloat(String(value).replace(/[₱,]/g, '')) || 0;
+  return parseFloat(String(value).replace(/[^0-9.-]+/g, '')) || 0;
 };
 
 // Utility: Format number to currency string
 export const formatCurrency = (amount) => {
-  return '₱' + (parseFloat(amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return '₱' + parseCurrency(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 // Return items to inventory (refund)
