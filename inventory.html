@@ -37,9 +37,9 @@
       editModalOpen: false,
       deleteConfirmOpen: false,
       searchTerm: '',
-      newMedicine: { name: '', brandName: '', strength: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
-      newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
-      editingMedicine: { name: '', brandName: '', strength: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' },
+      newMedicine: { name: '', brandName: '', strength: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '' },
+      newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '' },
+      editingMedicine: { name: '', brandName: '', strength: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '' },
       editingKind: 'Medicine',
       editingId: null,
       itemToDelete: null,
@@ -51,15 +51,37 @@
       editingCategoryIndex: null,
       editingCategoryName: '',
       isLoading: true,
+      currentUser: window.auth.getCurrentUser(),
       
       async init() {
         console.log('Inventory Alpine init: Waiting for window.db...');
+        
+        // Listen for resize to sync sidebar state
+        window.addEventListener('resize', () => {
+          if (window.innerWidth >= 1024) this.sidebarOpen = true;
+        });
+
         // Small interval check to ensure window.db is ready
         const waitForDb = setInterval(async () => {
           if (window.db) {
             clearInterval(waitForDb);
             console.log('Database ready! Fetching inventory...');
-            this.medicines = await window.db.fetchInventory();
+            const raw = await window.db.fetchInventory();
+            this.medicines = raw.map(m => {
+              let cleanName = m.name || '';
+              const str = (m.strength || '').trim();
+              if (str) {
+                // Remove strength from the end of the name if it matches exactly
+                const regex = new RegExp('\\s+' + str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
+                cleanName = cleanName.replace(regex, '');
+              }
+              return {
+                ...m,
+                name: cleanName,
+                costPrice: (m.costPrice || '0.00').toString().replace(/[?P₱ ]+/g, ''),
+                sellingPrice: (m.sellingPrice || '0.00').toString().replace(/[?P₱ ]+/g, '')
+              };
+            });
             this.isLoading = false;
             console.log('Fetched medicines:', this.medicines);
             this.$nextTick(() => lucide.createIcons());
@@ -138,9 +160,14 @@
         if (status === 'Expiring Soon') return 'bg-amber-50 border-amber-100/50';
         return 'bg-emerald-50 border-emerald-100/50';
       },
+      getRowClass(date) {
+        const status = this.getExpiryStatus(date);
+        return `${this.getExpiryBg(status)} ${this.getExpiryColor(status)}`;
+      },
       getStockClass(stock) {
         const val = window.db.parseStock(stock);
         if (val <= 0) return 'bg-rose-50 text-rose-600 border-rose-100/50';
+        if (val <= 20) return 'bg-orange-50 text-orange-600 border-orange-100/50';
         if (val <= 50) return 'bg-amber-50 text-amber-600 border-amber-100/50';
         return 'bg-emerald-50 text-emerald-600 border-emerald-100/50';
       },
@@ -171,10 +198,8 @@
         const colors = ['bg-blue-50 text-blue-900', 'bg-amber-50 text-amber-600', 'bg-rose-50 text-rose-600', 'bg-blue-50 text-blue-600', 'bg-indigo-50 text-indigo-600'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
         
-        const finalName = this.newMedicine.name + (this.newMedicine.strength ? ' ' + this.newMedicine.strength : '');
-        
         const itemToSave = {
-          name: finalName,
+          name: this.newMedicine.name,
           brandName: this.newMedicine.brandName || '',
           strength: this.newMedicine.strength || '',
           kind: 'Medicine',
@@ -183,10 +208,11 @@
           batch: this.newMedicine.batch || ('NEW-' + Math.floor(Math.random() * 1000)),
           supplier: this.newMedicine.supplier || 'N/A',
           stock: this.newMedicine.stock + ' units',
-          costPrice: '?' + parseFloat(this.newMedicine.costPrice || 0).toFixed(2),
-          sellingPrice: '?' + parseFloat(this.newMedicine.sellingPrice).toFixed(2),
+          costPrice: '₱' + parseFloat(this.newMedicine.costPrice || 0).toFixed(2),
+          sellingPrice: '₱' + parseFloat(this.newMedicine.sellingPrice).toFixed(2),
           expiryStatus: 'Good',
           expiryDate: this.newMedicine.expiryDate || 'N/A',
+          location: this.newMedicine.location || 'N/A',
           color: randomColor
         };
         
@@ -218,10 +244,11 @@
           batch: this.newGeneralItem.batch || ('G-' + Math.floor(Math.random() * 1000)),
           supplier: this.newGeneralItem.supplier || 'N/A',
           stock: this.newGeneralItem.stock + ' units',
-          costPrice: '?' + parseFloat(this.newGeneralItem.costPrice || 0).toFixed(2),
-          sellingPrice: '?' + parseFloat(this.newGeneralItem.sellingPrice).toFixed(2),
+          costPrice: '₱' + parseFloat(this.newGeneralItem.costPrice || 0).toFixed(2),
+          sellingPrice: '₱' + parseFloat(this.newGeneralItem.sellingPrice).toFixed(2),
           expiryStatus: 'Good',
           expiryDate: this.newGeneralItem.expiryDate || 'N/A',
+          location: this.newGeneralItem.location || 'N/A',
           color: randomColor
         };
 
@@ -270,45 +297,53 @@
           sellingPrice: sellingVal, 
           supplier: medicine.supplier || '',
           batch: medicine.batch || '',
-          expiryDate: medicine.expiryDate === 'N/A' ? '' : medicine.expiryDate 
+          expiryDate: medicine.expiryDate === 'N/A' ? '' : medicine.expiryDate,
+          location: medicine.location || ''
         };
         this.editModalOpen = true;
       },
       async saveEdit() {
         if (!this.editingId) return;
         
-        const finalName = this.editingMedicine.name + (this.editingMedicine.strength ? ' ' + this.editingMedicine.strength : '');
-        
-        const updatedData = {
-          name: finalName,
-          brandName: this.editingKind === 'Medicine' ? (this.editingMedicine.brandName || '') : '',
-          strength: this.editingKind === 'Medicine' ? (this.editingMedicine.strength || '') : '',
-          barcode: this.editingMedicine.barcode || 'N/A',
-          category: this.editingMedicine.category,
-          stock: this.editingMedicine.stock + ' units',
-          costPrice: '?' + parseFloat(this.editingMedicine.costPrice || 0).toFixed(2),
-          sellingPrice: '?' + parseFloat(this.editingMedicine.sellingPrice).toFixed(2),
-          supplier: this.editingMedicine.supplier || 'N/A',
-          batch: this.editingMedicine.batch || 'N/A',
-          expiryDate: this.editingMedicine.expiryDate || 'N/A'
-        };
-        
-        if (this.editingKind === 'Medicine') {
-          updatedData.type = this.editingMedicine.type;
-        } else if (this.editingKind === 'General') {
-          updatedData.type = this.editingMedicine.type;
+        try {
+          const updatedData = {
+            name: this.editingMedicine.name,
+            brandName: this.editingKind === 'Medicine' ? (this.editingMedicine.brandName || '') : '',
+            strength: this.editingKind === 'Medicine' ? (this.editingMedicine.strength || '') : '',
+            barcode: this.editingMedicine.barcode || 'N/A',
+            category: this.editingMedicine.category,
+            stock: this.editingMedicine.stock + ' units',
+            costPrice: '₱' + parseFloat(this.editingMedicine.costPrice || 0).toFixed(2),
+            sellingPrice: '₱' + parseFloat(this.editingMedicine.sellingPrice).toFixed(2),
+            supplier: this.editingMedicine.supplier || 'N/A',
+            batch: this.editingMedicine.batch || 'N/A',
+            expiryDate: this.editingMedicine.expiryDate || 'N/A',
+            location: this.editingMedicine.location || 'N/A'
+          };
+          
+          if (this.editingKind === 'Medicine') {
+            updatedData.type = this.editingMedicine.type;
+          } else if (this.editingKind === 'General') {
+            updatedData.type = this.editingMedicine.type;
+          }
+
+          await window.db.updateInventoryItem(this.editingId, updatedData);
+
+          const targetIndex = this.medicines.findIndex(m => m.id === this.editingId);
+          if (targetIndex !== -1) {
+            this.medicines[targetIndex] = { ...this.medicines[targetIndex], ...updatedData };
+            // Sort to maintain order
+            this.medicines.sort((a, b) => a.name.localeCompare(b.name));
+          }
+
+          alert('Inventory item updated successfully!');
+          this.editModalOpen = false;
+          this.editingId = null;
+          this.$nextTick(() => lucide.createIcons());
+        } catch (error) {
+          console.error(error);
+          alert('Failed to update: ' + error.message);
         }
-
-        await window.db.updateInventoryItem(this.editingId, updatedData);
-
-        if (targetIndex !== -1) {
-          this.medicines[targetIndex] = { ...this.medicines[targetIndex], ...updatedData };
-          this.medicines.sort((a, b) => a.name.localeCompare(b.name));
-        }
-
-        this.editModalOpen = false;
-        this.editingId = null;
-        this.$nextTick(() => lucide.createIcons());
       },
       confirmDelete(medicine) {
         this.itemToDelete = medicine;
@@ -409,7 +444,7 @@
 
       <!-- Top Header -->
       <header
-        class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-4 sticky top-0 z-40 bg-white/40 backdrop-blur-md border-b border-white/20">
+        class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-5 sticky top-0 z-40 bg-white/40 backdrop-blur-md border-b border-white/20">
         <div class="flex items-center gap-4 md:gap-6">
           <button @click="sidebarOpen = !sidebarOpen"
             class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
@@ -516,31 +551,15 @@
                     <table class="w-full text-left border-collapse">
                       <thead>
                         <tr class="bg-slate-50/50">
-                          <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
-                            Medicine</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Strength</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Type</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Batch / Supplier</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Stock</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Cost</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Selling</th>
-                          <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
-                            Expiry</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">
-                            Actions</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Medicine</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden md:table-cell">Strength</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden lg:table-cell">Type</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden xl:table-cell">Batch / Supplier</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Stock</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden sm:table-cell">Cost</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Selling</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest hidden lg:table-cell">Expiry</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-slate-100/50">
@@ -562,62 +581,61 @@
                         </template>
                         <template x-for="medicine in filteredMedicinesOnly">
                           <tr class="hover:bg-slate-50/40 transition-colors group">
-                            <td class="px-8 py-6">
-                              <div class="flex items-center gap-4">
+                            <td class="px-4 md:px-8 py-4 md:py-6">
+                              <div class="flex items-center gap-3 md:gap-4">
                                 <div
-                                  :class="`w-12 h-12 ${medicine.color} rounded-2xl shadow-sm border border-slate-200/50 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform`"
+                                  :class="`w-10 h-10 md:w-12 md:h-12 ${medicine.color} rounded-2xl shadow-sm border border-slate-200/50 flex items-center justify-center font-bold text-base md:text-lg group-hover:scale-110 transition-transform`"
                                   x-text="medicine.name.charAt(0)">
                                 </div>
                                 <div class="flex flex-col">
                                   <div class="flex items-center gap-2">
-                                    <span class="text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
+                                    <span class="text-sm md:text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
                                     <template x-if="medicine.brandName">
-                                      <span class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md" x-text="medicine.brandName"></span>
+                                      <span class="text-[9px] md:text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md hidden sm:inline-block" x-text="medicine.brandName"></span>
                                     </template>
                                   </div>
-                                  <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"
+                                  <span class="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest"
                                     x-text="medicine.category"></span>
                                 </div>
                               </div>
                             </td>
-                            <td class="px-8 py-6 text-center">
-                              <span class="text-sm font-bold text-slate-600" 
-                                    x-text="medicine.strength || (medicine.name.match(/\d+\s?(mg)?$/i) ? medicine.name.match(/\d+\s?(mg)?$/i)[0].replace(/mg$/i, '') : 'N/A')"></span>
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden md:table-cell">
+                              <span class="text-xs md:text-sm font-bold text-slate-600" 
+                                    x-text="medicine.strength || 'N/A'"></span>
                             </td>
-                            <td class="px-8 py-6 text-center">
-                              <span :class="medicine.type === 'Branded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-blue-50 text-blue-900 border-blue-100/50'"
-                                class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-full border inline-block"
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden lg:table-cell">
+                              <span :class="medicine.type === 'Branded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : (medicine.type === 'Medical Supply' ? 'bg-blue-50 text-blue-600 border-blue-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100/50')"
+                                class="px-2 md:px-3 py-1 text-[9px] md:text-[10px] font-bold uppercase tracking-widest rounded-full border inline-block"
                                 x-text="medicine.type"></span>
                             </td>
-                            <td class="px-8 py-6 text-center">
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden xl:table-cell">
                               <div class="flex flex-col">
-                                <span class="text-sm font-bold text-slate-700" x-text="medicine.batch"></span>
-                                <span class="text-[11px] font-medium text-slate-400" x-text="medicine.supplier"></span>
+                                <span class="text-xs md:text-sm font-bold text-slate-700" x-text="medicine.batch || 'N/A'"></span>
+                                <span class="text-[9px] md:text-[11px] font-medium text-slate-400" x-text="medicine.supplier || 'N/A'"></span>
                               </div>
                             </td>
-                            <td class="px-8 py-6 text-center">
-                              <span
-                                :class="getStockClass(medicine.stock)"
-                                class="px-4 py-1.5 text-[11px] font-bold rounded-full border whitespace-nowrap"
-                                x-text="medicine.stock"></span>
-                            </td>
-                            <td class="px-8 py-6 text-center">
-                              <span class="text-sm font-bold text-slate-500" x-text="medicine.costPrice"></span>
-                            </td>
-                            <td class="px-8 py-6 text-center">
-                              <span class="text-[15px] font-black text-indigo-600 tracking-tight"
-                                x-text="medicine.sellingPrice"></span>
-                            </td>
-                            <td class="px-8 py-6">
-                              <div class="flex flex-col">
-                                <span :class="getExpiryColor(getExpiryStatus(medicine.expiryDate))" 
-                                  class="text-[11px] font-bold uppercase tracking-tighter"
-                                  x-text="getExpiryStatus(medicine.expiryDate)"></span>
-                                <span class="text-xs font-semibold text-slate-400 mt-0.5"
-                                  x-text="medicine.expiryDate"></span>
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center">
+                              <div class="flex items-center justify-center gap-2">
+                                <template x-if="window.db.parseStock(medicine.stock) <= 50">
+                                  <i data-lucide="alert-triangle" :class="window.db.parseStock(medicine.stock) <= 0 ? 'text-rose-500' : (window.db.parseStock(medicine.stock) <= 20 ? 'text-orange-500' : 'text-amber-500')" class="w-4 h-4 animate-pulse"></i>
+                                </template>
+                                <span
+                                  :class="getStockClass(medicine.stock)"
+                                  class="text-xs md:text-sm font-black px-2 md:px-3 py-1 rounded-lg" x-text="medicine.stock"></span>
                               </div>
                             </td>
-                            <td class="px-8 py-6">
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden sm:table-cell">
+                              <span class="text-xs md:text-sm font-bold text-slate-500" x-text="'₱' + medicine.costPrice"></span>
+                            </td>
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center">
+                              <span class="text-xs md:text-sm font-black text-slate-800"
+                                x-text="'₱' + medicine.sellingPrice"></span>
+                            </td>
+                            <td class="px-4 md:px-8 py-4 md:py-6 hidden lg:table-cell text-center">
+                              <span :class="getRowClass(medicine.expiryDate)" 
+                                    class="text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-md border" x-text="medicine.expiryDate || 'N/A'"></span>
+                            </td>
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-right">
                               <div class="flex items-center justify-end gap-2">
                                 <button @click="openEditModal(medicine)"
                                   class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm cursor-pointer relative z-10">
@@ -653,28 +671,14 @@
                     <table class="w-full text-left border-collapse">
                       <thead>
                         <tr class="bg-slate-50/50">
-                          <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
-                            Product / Item</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Batch / Category</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Type</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            QTY</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Cost</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                            Selling</th>
-                          <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">
-                            Expiry</th>
-                          <th
-                            class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">
-                            Actions</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Product / Item</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden md:table-cell">Batch / Category</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden lg:table-cell">Type</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">QTY</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden sm:table-cell">Cost</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Selling</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest hidden lg:table-cell">Expiry</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-slate-100/50">
@@ -696,53 +700,52 @@
                         </template>
                         <template x-for="medicine in filteredGeneralItemsOnly">
                           <tr class="hover:bg-slate-50/40 transition-colors group">
-                            <td class="px-8 py-6">
-                              <div class="flex items-center gap-4">
+                            <td class="px-4 md:px-8 py-4 md:py-6">
+                              <div class="flex items-center gap-3 md:gap-4">
                                 <div
-                                  :class="`w-12 h-12 ${medicine.color} rounded-2xl shadow-sm border border-slate-200/50 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform`"
+                                  :class="`w-10 h-10 md:w-12 md:h-12 ${medicine.color} rounded-2xl shadow-sm border border-slate-200/50 flex items-center justify-center font-bold text-base md:text-lg group-hover:scale-110 transition-transform`"
                                   x-text="medicine.name.charAt(0)">
                                 </div>
                                 <div class="flex flex-col">
-                                  <span class="text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
-                                  <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest"
+                                  <span class="text-sm md:text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
+                                  <span class="text-[9px] md:text-[10px] font-bold text-indigo-500 uppercase tracking-widest"
                                     x-text="medicine.barcode"></span>
                                 </div>
                               </div>
                             </td>
-                            <td class="px-8 py-6 text-center">
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden md:table-cell">
                               <div class="flex flex-col">
-                                <span class="text-sm font-bold text-slate-700" x-text="medicine.batch"></span>
-                                <span class="text-[11px] font-medium text-slate-400" x-text="medicine.category"></span>
+                                <span class="text-xs md:text-sm font-bold text-slate-700" x-text="medicine.batch"></span>
+                                <span class="text-[9px] md:text-[11px] font-medium text-slate-400" x-text="medicine.category"></span>
                               </div>
                             </td>
-                            <td class="px-8 py-6 text-center">
-                              <span :class="medicine.type === 'Grocery' ? 'bg-orange-50 text-orange-600 border-orange-100/50' : 'bg-blue-50 text-blue-600 border-blue-100/50'"
-                                class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-full border inline-block"
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden lg:table-cell">
+                              <span :class="medicine.type === 'Grocery' ? 'bg-orange-50 text-orange-600 border-orange-100/50' : (medicine.type === 'Medical Supply' ? 'bg-blue-50 text-blue-600 border-blue-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100/50')"
+                                class="px-2 md:px-3 py-1 text-[9px] md:text-[10px] font-bold uppercase tracking-widest rounded-full border inline-block"
                                 x-text="medicine.type || 'Medical Supply'"></span>
                             </td>
-                            <td class="px-8 py-6 text-center">
-                              <span
-                                :class="getStockClass(medicine.stock)"
-                                class="px-4 py-1.5 text-[11px] font-bold rounded-full border whitespace-nowrap"
-                                x-text="medicine.stock"></span>
-                            </td>
-                            <td class="px-8 py-6 text-center">
-                              <span class="text-sm font-bold text-slate-500" x-text="medicine.costPrice"></span>
-                            </td>
-                            <td class="px-8 py-6 text-center">
-                              <span class="text-[15px] font-black text-emerald-600 tracking-tight"
-                                x-text="medicine.sellingPrice"></span>
-                            </td>
-                            <td class="px-8 py-6">
-                              <div class="flex flex-col">
-                                <span :class="getExpiryColor(getExpiryStatus(medicine.expiryDate))" 
-                                  class="text-[11px] font-bold uppercase tracking-tighter"
-                                  x-text="getExpiryStatus(medicine.expiryDate)"></span>
-                                <span class="text-xs font-semibold text-slate-400 mt-0.5"
-                                  x-text="medicine.expiryDate"></span>
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center">
+                              <div class="flex items-center justify-center gap-2">
+                                <template x-if="window.db.parseStock(medicine.stock) <= 50">
+                                  <i data-lucide="alert-triangle" :class="window.db.parseStock(medicine.stock) <= 0 ? 'text-rose-500' : (window.db.parseStock(medicine.stock) <= 20 ? 'text-orange-500' : 'text-amber-500')" class="w-4 h-4 animate-pulse"></i>
+                                </template>
+                                <span
+                                  :class="getStockClass(medicine.stock)"
+                                  class="text-xs md:text-sm font-black px-2 md:px-3 py-1 rounded-lg" x-text="medicine.stock"></span>
                               </div>
                             </td>
-                            <td class="px-8 py-6">
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden sm:table-cell">
+                              <span class="text-xs md:text-sm font-bold text-slate-500" x-text="'₱' + medicine.costPrice"></span>
+                            </td>
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center">
+                              <span class="text-xs md:text-sm font-black text-slate-800"
+                                x-text="'₱' + medicine.sellingPrice"></span>
+                            </td>
+                            <td class="px-4 md:px-8 py-4 md:py-6 hidden lg:table-cell">
+                              <span :class="getRowClass(medicine.expiryDate)" 
+                                    class="text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-md border" x-text="medicine.expiryDate || 'N/A'"></span>
+                            </td>
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-right">
                               <div class="flex items-center justify-end gap-2">
                                 <button @click="openEditModal(medicine)"
                                   class="w-10 h-10 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm cursor-pointer relative z-10">
@@ -842,7 +845,7 @@
                         </div>
                       </div>
 
-                      <div class="grid grid-cols-2 gap-6">
+                      <div class="grid grid-cols-3 gap-6">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
                           <input x-model="newMedicine.expiryDate" type="date"
@@ -851,6 +854,11 @@
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
                           <input x-model="newMedicine.supplier" type="text" placeholder="e.g. PharmaCorp"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Location</label>
+                          <input x-model="newMedicine.location" type="text" placeholder="e.g. Shelf A1"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                       </div>
@@ -863,12 +871,12 @@
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (?)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
                           <input x-model="newMedicine.costPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (?)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
                           <input x-model="newMedicine.sellingPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
@@ -940,7 +948,7 @@
                         </div>
                       </div>
 
-                      <div class="grid grid-cols-2 gap-6">
+                      <div class="grid grid-cols-3 gap-6">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Type</label>
                           <div class="relative">
@@ -957,6 +965,11 @@
                           <input x-model="newGeneralItem.expiryDate" type="date"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Location</label>
+                          <input x-model="newGeneralItem.location" type="text" placeholder="e.g. Shelf B2"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
                       </div>
 
                       <div class="grid grid-cols-3 gap-6">
@@ -967,12 +980,12 @@
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (?)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
                           <input x-model="newGeneralItem.costPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (?)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
                           <input x-model="newGeneralItem.sellingPrice" type="number" step="0.01" placeholder="0.00"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
@@ -1076,7 +1089,7 @@
                         </div>
                       </div>
 
-                      <div class="grid grid-cols-2 gap-6" x-show="editingKind === 'Medicine'">
+                      <div class="grid grid-cols-3 gap-6" x-show="editingKind === 'Medicine'">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
                           <input x-model="editingMedicine.expiryDate" type="date"
@@ -1085,6 +1098,11 @@
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
                           <input x-model="editingMedicine.supplier" type="text"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Location</label>
+                          <input x-model="editingMedicine.location" type="text" placeholder="e.g. Shelf A1"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                       </div>
@@ -1108,7 +1126,7 @@
                         </div>
                       </div>
 
-                      <div class="grid grid-cols-2 gap-6" x-show="editingKind === 'General'">
+                      <div class="grid grid-cols-3 gap-6" x-show="editingKind === 'General'">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch Number</label>
                           <input x-model="editingMedicine.batch" type="text"
@@ -1117,6 +1135,11 @@
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
                           <input x-model="editingMedicine.supplier" type="text"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Location</label>
+                          <input x-model="editingMedicine.location" type="text" placeholder="e.g. Shelf B2"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                       </div>
@@ -1129,13 +1152,13 @@
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (?)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Cost (₱)</label>
                           <input x-model="editingMedicine.costPrice" type="number" step="0.01"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (?)</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Selling (₱)</label>
                           <input x-model="editingMedicine.sellingPrice" type="number" step="0.01"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>

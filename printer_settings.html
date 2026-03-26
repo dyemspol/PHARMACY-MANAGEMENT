@@ -47,9 +47,13 @@
     printOrders: localStorage.getItem('printOrders') === 'true',
     isSearching: false,
     printerStatus: 'disconnected',
-    sidebarOpen: window.innerWidth > 1024,
+    sidebarOpen: window.innerWidth >= 1024,
+    currentUser: window.auth.getCurrentUser(),
 
     init() {
+      window.addEventListener('resize', () => {
+        if (window.innerWidth >= 1024) this.sidebarOpen = true;
+      });
       if (window.printerService) {
         this.printerStatus = window.printerService.isConnected() ? 'ready' : 'disconnected';
         window.printerService.onStatusChange = (status) => {

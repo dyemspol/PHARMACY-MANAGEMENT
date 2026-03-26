@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -17,19 +17,32 @@
     <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
     
     <script type="module" src="/src/auth.js"></script>
-
-
+    <script type="module" src="/src/db.js"></script>
     
     <style>
       [x-cloak] { display: none !important; }
+      .bg-mesh {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background: radial-gradient(circle at 0% 0%, rgba(30, 58, 138, 0.05) 0%, transparent 50%),
+                    radial-gradient(circle at 100% 100%, rgba(220, 38, 38, 0.05) 0%, transparent 50%),
+                    #f8fafc;
+      }
     </style>
   </head>
   <body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ 
-    sidebarOpen: window.innerWidth > 1024,
+    sidebarOpen: window.innerWidth >= 1024,
     saleDetailsModal: false,
     salesData: [],
     isLoading: true,
+    currentUser: window.auth.getCurrentUser(),
+
     init() {
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 1024) this.sidebarOpen = true;
+        });
+
         const waitForDb = setInterval(() => {
             if (window.salesDb) {
                 clearInterval(waitForDb);
@@ -71,560 +84,273 @@
             alert('No sales data available to export.');
             return;
         }
-
-        // Define CSV headers
         let csvContent = 'data:text/csv;charset=utf-8,';
         csvContent += 'Transaction Number,Number of Items,Total Amount,Date\n';
-
-        // Map over state sales data
         this.salesData.forEach((row) => {
-            // Clean up text properties to ensure no commas break the CSV structure
             let itemsNum = row.items.replace(' item(s)', '');
             let totalAmount = row.total.replace('₱', '').replace(/,/g, '');
-            
-            // Format Date to MM-DD-YYYY
             let formattedDate = new Date(row.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-
             let rawRow = `${row.id},${itemsNum},${totalAmount},${formattedDate}`;
             csvContent += rawRow + '\n';
         });
-
-        // Create a hidden link and trigger download natively
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement('a');
         link.setAttribute('href', encodedUri);
         link.setAttribute('download', `Sales_Report_${new Date().toISOString().split('T')[0]}.csv`);
-        document.body.appendChild(link); // Required for FF
+        document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     },
-    selectedSale: {
-      id: '',
-      rawId: '',
-      date: '',
-      subtotal: '₱0.00',
-      discount: '₱0.00',
-      total: '₱0.00',
-      itemsCount: 0,
-      status: 'Completed',
-      items: []
-    },
+    selectedSale: { id: '', rawId: '', date: '', subtotal: '₱0.00', discount: '₱0.00', total: '₱0.00', itemsCount: 0, status: 'Completed', cart: [] },
     searchQuery: '',
     get filteredSales() {
         if (this.searchQuery.trim() === '') return this.salesData;
         const query = this.searchQuery.toLowerCase();
         return this.salesData.filter(sale => 
             sale.id.toLowerCase().includes(query) || 
-            (sale.cart && sale.cart.some(item => item.name.toLowerCase().includes(query))) ||
-            (sale.cart && sale.cart.some(item => item.category && item.category.toLowerCase().includes(query)))
+            (sale.cart && sale.cart.some(item => item.name.toLowerCase().includes(query)))
         );
     },
     currentPage: 1,
-    itemsPerPage: 5,
-    get totalPages() {
-        return Math.ceil(this.filteredSales.length / this.itemsPerPage) || 1;
-    },
+    itemsPerPage: 8,
+    get totalPages() { return Math.ceil(this.filteredSales.length / this.itemsPerPage) || 1; },
     get paginatedSales() {
-        // Automatically reset to 1 if search makes current page go out of bounds
-        if (this.currentPage > this.totalPages) {
-            this.currentPage = Math.max(1, this.totalPages);
-        }
+        if (this.currentPage > this.totalPages) this.currentPage = Math.max(1, this.totalPages);
         const start = (this.currentPage - 1) * this.itemsPerPage;
-        const end = start + this.itemsPerPage;
-        return this.filteredSales.slice(start, end);
+        return this.filteredSales.slice(start, start + this.itemsPerPage);
     },
-    nextPage() {
-        if (this.currentPage < this.totalPages) this.currentPage++;
-    },
-    prevPage() {
-        if (this.currentPage > 1) this.currentPage--;
-    },
-    goToPage(page) {
-        this.currentPage = page;
-    },
+    nextPage() { if (this.currentPage < this.totalPages) this.currentPage++; },
+    prevPage() { if (this.currentPage > 1) this.currentPage--; },
+    goToPage(page) { this.currentPage = page; },
     get selectedSaleNetTotal() {
-        if (!this.selectedSale.items) return '₱0.00';
-        const net = this.selectedSale.items.reduce((sum, item) => {
-            return sum + ((item.quantity - (item.quantityRefunded || 0)) * item.price);
-        }, 0);
-        return '₱' + net.toFixed(2);
+        if (!this.selectedSale || !this.selectedSale.cart) return '₱0.00';
+        const net = this.selectedSale.cart.reduce((sum, item) => sum + ((item.quantity - (item.quantityRefunded || 0)) * item.price), 0);
+        const discountValue = parseFloat(this.selectedSale.discount.replace('₱', '').replace('-', '')) || 0;
+        return '₱' + (net - discountValue).toFixed(2);
+    },
+    get selectedSaleRefundTotal() {
+        if (!this.selectedSale || !this.selectedSale.cart) return '₱0.00';
+        const refund = this.selectedSale.cart.reduce((sum, item) => sum + ((item.quantityRefunded || 0) * item.price), 0);
+        return '₱' + refund.toFixed(2);
     },
     async refundSelectedSale() {
         if (!this.selectedSale || !this.selectedSale.rawId) return;
-        if (!confirm('Are you sure you want to refund this transaction? This will return all remaining items to the inventory and mark this sale as Refunded.')) return;
-        
+        if (!confirm('Are you sure you want to refund this transaction?')) return;
         try {
             this.isLoading = true;
-            
-            // 1. Identify remaining quantities to refund
-            const itemsToReturn = this.selectedSale.items
-                .map(it => ({ ...it, quantity: it.quantity - (it.quantityRefunded || 0) }))
-                .filter(it => it.quantity > 0);
-            
-            if (itemsToReturn.length > 0) {
-                // Return remaining to inventory
-                await window.db.returnItemsToInventory(itemsToReturn);
-            }
-
-            // 2. Mark all as fully refunded
-            const updatedItems = this.selectedSale.items.map(it => ({
-                ...it,
-                quantityPurchased: it.quantity,
-                quantityRefunded: it.quantity
-            }));
-            
-            // 3. Update Firestore
+            const itemsToReturn = this.selectedSale.cart.map(it => ({ ...it, quantity: it.quantity - (it.quantityRefunded || 0) })).filter(it => it.quantity > 0);
+            if (itemsToReturn.length > 0) await window.db.returnItemsToInventory(itemsToReturn);
+            const updatedItems = this.selectedSale.cart.map(it => ({ ...it, quantityPurchased: it.quantity, quantityRefunded: it.quantity }));
             await window.salesDb.updateSaleItemRefund(this.selectedSale.rawId, updatedItems, 'Refunded');
-            
             this.saleDetailsModal = false;
             alert('Full refund processed successfully!');
-        } catch (error) {
-            console.error('Refund error:', error);
-            alert('Error processing refund: ' + error.message);
-        } finally {
-            this.isLoading = false;
-        }
+        } catch (error) { alert('Error: ' + error.message); } finally { this.isLoading = false; }
     },
     async refundSaleItem(item, index) {
         const remaining = item.quantity - item.quantityRefunded;
         if (remaining <= 0) return;
-        
         const refundQty = parseInt(prompt(`How many units of ${item.name} to refund? (Max: ${remaining})`, remaining));
-        if (isNaN(refundQty) || refundQty <= 0 || refundQty > remaining) {
-            if (refundQty !== null) alert('Invalid quantity');
-            return;
-        }
-
+        if (isNaN(refundQty) || refundQty <= 0 || refundQty > remaining) return;
         try {
             this.isLoading = true;
-            
-            // 1. Return to inventory
-            await window.db.returnItemsToInventory([{
-                id: item.id,
-                name: item.name,
-                quantity: refundQty
-            }]);
-            
-            // 2. Prepare updated items array
-            const updatedItems = this.selectedSale.items.map((it, idx) => {
-                if (idx === index) {
-                    return { ...it, quantityRefunded: it.quantityRefunded + refundQty };
-                }
-                // Handle cases where existing items don't have all fields
-                return { ...it, quantityPurchased: it.quantity, quantityRefunded: it.quantityRefunded || 0 };
-            });
-
-            // 3. Determine overall status
+            await window.db.returnItemsToInventory([{ id: item.id, name: item.name, quantity: refundQty }]);
+            const updatedItems = this.selectedSale.cart.map((it, idx) => idx === index ? { ...it, quantityRefunded: it.quantityRefunded + refundQty } : { ...it, quantityPurchased: it.quantity, quantityRefunded: it.quantityRefunded || 0 });
             const allRefunded = updatedItems.every(it => it.quantityRefunded >= it.quantity);
             const overallStatus = allRefunded ? 'Refunded' : 'Completed';
-            
-            // 4. Update sale record (we pass the raw items structure Firestore expects)
-            // Note: sales.js updateSaleItemRefund takes the items array
-            const firestoreItems = updatedItems.map(it => ({
-                id: it.id,
-                name: it.name,
-                category: it.category,
-                price: it.price,
-                costPrice: it.costPrice || 0, // Keep existing costPrice if possible
-                quantityPurchased: it.quantity,
-                quantityRefunded: it.quantityRefunded
-            }));
-
+            const firestoreItems = updatedItems.map(it => ({ id: it.id, name: it.name, category: it.category, price: it.price, costPrice: it.costPrice || 0, quantityPurchased: it.quantity, quantityRefunded: it.quantityRefunded }));
             await window.salesDb.updateSaleItemRefund(this.selectedSale.rawId, firestoreItems, overallStatus);
-            
-            // Update local state
-            this.selectedSale.items = updatedItems;
+            this.selectedSale.cart = updatedItems;
             this.selectedSale.status = overallStatus;
-            
-            alert(`Successfully refunded ${refundQty} units of ${item.name}`);
-        } catch (error) {
-            console.error('Partial refund error:', error);
-            alert('Error: ' + error.message);
-        } finally {
-            this.isLoading = false;
-        }
+            alert(`Successfully refunded ${refundQty} units`);
+        } catch (error) { alert('Error: ' + error.message); } finally { this.isLoading = false; }
     }
   }">
     
+    <div class="bg-mesh"></div>
 
-    <!-- sale details       -->
-    <div 
-      x-show="saleDetailsModal"
-      x-cloak
-      x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0"
-      x-transition:enter-end="opacity-100"
-      x-transition:leave="transition ease-in duration-200"
-      x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-      @click.away="saleDetailsModal = false"
-      class="fixed inset-0 z-60 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"
-    >
-      <div 
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 scale-95 translate-y-4"
-        x-transition:enter-end="opacity-100 scale-100 translate-y-0"
-        class="max-w-2xl w-full bg-white p-8 rounded-4xl shadow-2xl animate-bento"
-      >
+    <!-- Sale Details Modal -->
+    <div x-show="saleDetailsModal" x-cloak class="fixed inset-0 z-60 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm" @click.away="saleDetailsModal = false">
+      <div class="max-w-2xl w-full bg-white p-8 rounded-4xl shadow-2xl animate-bento">
         <div class="flex items-center justify-between mb-2">
           <div class="text-2xl font-black text-slate-800 tracking-tight">Sale Details <span class="text-slate-400 font-bold ml-2" x-text="selectedSale.id"></span></div>
           <button @click="saleDetailsModal = false" class="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-50 transition-colors">
-            <i class="hgi hgi-stroke hgi-cancel-01 text-slate-400"></i>
+            <i data-lucide="x" class="w-5 h-5 text-slate-400"></i>
           </button>
         </div>
-        
         <hr class="my-6 border-slate-100">
-        
         <div class="grid grid-cols-2 gap-8">
           <section class="space-y-6">
-            <div>
-              <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Transaction ID</p>
-              <p class="text-sm font-bold text-slate-700" x-text="selectedSale.id"></p>
-            </div>
-             <div>
-              <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Subtotal (Original)</p>
-              <p class="text-sm font-bold text-slate-500 line-through" x-text="selectedSale.subtotal"></p>
-            </div>
-             <div>
-              <p class="text-[11px] font-extrabold text-rose-500 uppercase tracking-widest mb-1">Discount Applied</p>
-              <p class="text-rose-600 font-black text-xl tracking-tight" x-text="'- ' + selectedSale.discount"></p>
-            </div>
+            <div><p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Transaction ID</p><p class="text-sm font-bold text-slate-700" x-text="selectedSale.id"></p></div>
+            <div><p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Subtotal</p><p class="text-sm font-bold text-slate-500 line-through" x-text="selectedSale.subtotal"></p></div>
+             <div><p class="text-[11px] font-extrabold text-rose-500 uppercase tracking-widest mb-1">Discount</p><p class="text-rose-600 font-black text-xl tracking-tight" x-text="'- ' + selectedSale.discount"></p></div>
           </section>
-          
           <section class="space-y-6">
-             <div>
-              <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Date & Timestamp</p>
-              <p class="text-sm font-bold text-slate-700" x-text="selectedSale.date"></p>
-            </div>
-             <div>
+            <div><p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Date</p><p class="text-sm font-bold text-slate-700" x-text="selectedSale.date"></p></div>
+            <div>
               <p class="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-1">Status</p>
-              <span 
-                :class="selectedSale.status === 'Refunded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'"
-                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter italic border"
-              >
-                <span :class="selectedSale.status === 'Refunded' ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'" class="w-1.5 h-1.5 rounded-full"></span>
-                <span x-text="selectedSale.status"></span>
-              </span>
+              <span :class="selectedSale.status === 'Refunded' ? 'bg-rose-50 text-rose-600' : (selectedSale.cart && selectedSale.cart.some(i => i.quantityRefunded > 0) ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600')" class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-current opacity-80" x-text="selectedSale.status === 'Refunded' ? 'Refunded' : (selectedSale.cart && selectedSale.cart.some(i => i.quantityRefunded > 0) ? 'Partial Refund' : 'Completed')"></span>
             </div>
+             <div><p class="text-[11px] font-extrabold text-rose-400 uppercase tracking-widest mb-1">Refunded</p><p class="text-sm font-bold text-rose-500" x-text="selectedSaleRefundTotal"></p></div>
           </section>
         </div>
-
-        <!-- item section -->
-        <section class="mt-10 mb-6">
-          <div class="flex items-center justify-between mb-4">
-            <p class="text-slate-800 font-extrabold text-lg tracking-tight">Items Summary <span class="text-slate-400 font-bold ml-1 text-sm" x-text="`(${selectedSale.itemsCount})`"></span></p>
-          </div>
-          
-          <div class="space-y-3 max-h-48 overflow-y-auto hide-scrollbar pr-2">
-            <template x-for="(item, index) in selectedSale.items">
-              <div class="flex justify-between items-center bg-slate-50/50 p-4 rounded-3xl border border-slate-100 group hover:border-blue-800/20 transition-all">
-                <div class="flex items-center gap-4">
-                  <div class="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                    <img class="w-6 h-6 object-contain opacity-40" src="/src/img/logo.png" alt="">
-                  </div>
-                  <div>
-                    <p class="text-sm font-bold text-slate-800" x-text="item.name"></p>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tight" x-text="item.category"></p>
-                  </div>
-                </div>
-
-                <div class="text-right flex items-center gap-4">
-                  <div class="text-right">
-                    <p class="text-xs font-bold text-slate-500" x-text="`${item.quantity} x ₱${item.price.toFixed(2)}`"></p>
+        <section class="mt-8 mb-6">
+          <p class="text-slate-800 font-extrabold text-lg tracking-tight mb-4">Items Summary</p>
+          <div class="space-y-3 max-h-48 overflow-y-auto pr-2">
+            <template x-for="(item, index) in selectedSale.cart">
+              <div class="flex justify-between items-center p-4 rounded-3xl border transition-all" :class="item.quantityRefunded >= item.quantity ? 'bg-slate-50 opacity-50 grayscale border-slate-100' : 'bg-white border-slate-100 shadow-sm'">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <p class="text-sm font-bold text-slate-800" :class="item.quantityRefunded >= item.quantity ? 'line-through' : ''" x-text="item.name"></p>
                     <template x-if="item.quantityRefunded > 0">
-                      <p class="text-[9px] font-bold text-rose-500 uppercase tracking-tighter" x-text="`Refunded: ${item.quantityRefunded}`"></p>
+                      <span class="text-[9px] font-black bg-rose-50 text-rose-600 px-2 py-0.5 rounded-lg border border-rose-100 animate-pulse" x-text="`REFUNDED: ${item.quantityRefunded}`"></span>
                     </template>
-                    <p class="text-sm font-black text-blue-900 mt-0.5 tracking-tight" x-text="`₱${((item.quantity - item.quantityRefunded) * item.price).toFixed(2)}`"></p>
                   </div>
-                  
-                  <!-- Per-item Refund Button -->
-                  <template x-if="item.quantityRefunded < item.quantity">
-                    <button @click="refundSaleItem(item, index)" class="w-8 h-8 flex items-center justify-center bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all border border-rose-100/50" title="Refund this product">
-                      <i class="hgi hgi-stroke hgi-left-to-right-list-bullet text-[12px]"></i>
-                    </button>
+                  <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tight" x-text="item.category"></p>
+                </div>
+                <div class="text-right flex items-center gap-4">
+                   <div class="text-right">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase" x-text="`QTY: ${item.quantity}`"></p>
+                    <p class="text-xs font-bold text-slate-500" x-text="`₱${item.price.toFixed(2)} / pc`"></p>
+                    <p class="text-sm font-black text-blue-900 mt-1" x-text="`₱${((item.quantity - (item.quantityRefunded||0)) * item.price).toFixed(2)}`"></p>
+                  </div>
+                  <template x-if="(item.quantity - (item.quantityRefunded||0)) > 0">
+                    <button @click="refundSaleItem(item, index)" class="w-10 h-10 flex items-center justify-center bg-rose-50 text-rose-600 rounded-2xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
                   </template>
                 </div>
               </div>
             </template>
           </div>
         </section>
-
-        <section class="flex justify-between items-center p-6 bg-emerald-50 rounded-3xl border border-emerald-100 shadow-sm shadow-emerald-500/5">
-           <div>
-             <p class="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em]">Grand Total (Paid)</p>
-             <p class="text-slate-400 text-[10px] font-bold">Successfully Received</p>
-           </div>
+        <section class="flex justify-between items-center p-6 bg-emerald-50 rounded-3xl border border-emerald-100">
+           <div><p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Grand Total (Paid)</p></div>
             <p class="font-black text-3xl text-emerald-600 tracking-tighter" x-text="selectedSaleNetTotal"></p>
         </section>
-        
-        <hr class="my-8 border-slate-100">
-
-        <section class="flex justify-end gap-3">
-          <button @click="saleDetailsModal = false" class="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all text-sm">Close Window</button>
-          
-          <template x-if="selectedSale.status !== 'Refunded'">
-            <button @click="refundSelectedSale" class="px-8 py-3 bg-rose-50 text-rose-600 border border-rose-100 font-bold rounded-2xl hover:bg-rose-600 hover:text-white transition-all text-sm flex items-center gap-2 group">
-              <i class="hgi hgi-stroke hgi-left-to-right-list-bullet group-hover:-translate-x-0.5 transition-transform"></i>
-              <span>Refund Transaction</span>
-            </button>
-          </template>
-
-          <button class="px-8 py-3 bg-blue-900 text-white font-bold rounded-2xl shadow-lg shadow-blue-800/20 hover:bg-blue-900 transition-all text-sm flex items-center gap-2 group">
-            <i class="hgi hgi-stroke hgi-download-01 group-hover:-translate-y-0.5 transition-transform"></i>
-            <span>Download Invoice</span>
-          </button>
-        </section>
+        <div class="mt-8 flex justify-end gap-3">
+          <button @click="saleDetailsModal = false" class="px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl">Close</button>
+          <button @click="refundSelectedSale" class="px-6 py-3 bg-rose-50 text-rose-600 font-bold rounded-2xl hover:bg-rose-600 hover:text-white transition-all">Refund All</button>
+        </div>
       </div>
     </div>
 
-
-
-
-
-
-
-
-
     <!-- Mobile Sidebar Backdrop -->
-    <div 
-      x-show="sidebarOpen" 
-      @click="sidebarOpen = false" 
-      x-cloak
-      class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"
-      x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0"
-      x-transition:enter-end="opacity-100"
-      x-transition:leave="transition ease-in duration-200"
-      x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-    ></div>
+    <div x-show="sidebarOpen" @click="sidebarOpen = false" x-cloak class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"></div>
 
-    <div class="bg-mesh"></div>
-
-    <aside 
-      class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
-      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-    >
-      <!-- Mobile Toggle Arrow (Overlapping Edge) -->
-      <button 
-        x-show="sidebarOpen"
-        x-cloak
-        @click="sidebarOpen = false" 
-        class="lg:hidden absolute -right-4 top-12 w-10 h-10 bg-blue-900 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-800/40 border-4 border-white z-50 hover:scale-110 active:scale-95 transition-all"
-      >
-        <i data-lucide="chevron-left" class="w-5 h-5"></i>
-      </button>
-
+    <!-- Sidebar -->
+    <aside class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
         <div class="px-6 py-8">
           <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
-              <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
+            <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
           </a>
         </div>
-
-        <!-- Navigation -->
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
           <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
-          
-          <a href="index.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
-            <i data-lucide="layout-grid" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Dashboard</span>
-          </a>
-
-          <a href="inventory.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
-            <i data-lucide="package" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Inventory</span>
-          </a>
-
-          <a href="POST_terminal.html" class="nav-link w-full">
-            <i data-lucide="shopping-bag" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">POS Terminal</span>
-          </a>
-
-          <a href="sales.html" class="nav-link w-full active">
-            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Sales History</span>
-          </a>
-
-
-
-          <a href="reports.html" class="nav-link w-full">
-            <i data-lucide="file-text" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Reports</span>
-          </a>
-          <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
-            <i data-lucide="users" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Accounts</span>
-          </a>
-          <a href="printer_settings.html" class="nav-link w-full">
-            <i data-lucide="printer" class="w-5 h-5"></i>
-            <span class="font-semibold text-[15px]">Printer Setup</span>
-          </a>
-
-
-
+          <a href="index.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
+          <a href="inventory.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
+          <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span class="font-semibold text-[15px]">POS Terminal</span></a>
+          <a href="sales.html" class="nav-link w-full active"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Sales History</span></a>
+          <a href="reports.html" class="nav-link w-full"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
+          <a href="accounts.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
+          <a href="printer_settings.html" class="nav-link w-full"><i data-lucide="printer" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Printer Setup</span></a>
         </nav>
-
-        <!-- Logout -->
         <div class="p-6 mt-auto">
-          <button @click="window.auth.logout()" class="w-full flex items-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
-            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i>
-            <span>Logout Account</span>
+          <button @click="window.auth.logout()" class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
+            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i><span>Logout Account</span>
           </button>
         </div>
       </div>
     </aside>
 
-    <!-- Content -->
+    <!-- Main Content -->
     <main class="lg:ml-72 min-h-screen transition-all duration-500">
-      
-      <!-- Top Header -->
-      <header class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-4 sticky top-0 z-40 bg-white/40 backdrop-blur-md">
+      <header class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-5 sticky top-0 z-40 bg-white/40 backdrop-blur-md border-b border-white/20">
         <div class="flex items-center gap-4 md:gap-6">
           <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
-            <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6"></i>
+            <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6 text-slate-600"></i>
           </button>
           <div>
             <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Sales History</h2>
-            <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap">Monitoring financial transactions</p>
+            <p class="text-[10px] md:text-sm text-slate-400 font-medium uppercase tracking-widest mt-1">Order Log & Financial Tracking</p>
           </div>
         </div>
-
-        <div class="flex items-center gap-4">
-          <button @click="exportCSV()" class="px-6 py-3 bg-blue-900 text-white font-bold rounded-2xl flex items-center gap-2 shadow-lg shadow-blue-800/20 hover:bg-blue-900 transition-all cursor-pointer relative z-10">
-            <i data-lucide="download-cloud" class="w-4 h-4"></i>
-            <span>Export CSV</span>
+        <div class="flex items-center gap-3">
+          <button @click="exportCSV()" class="flex items-center gap-2 px-6 py-3 bg-blue-900 text-white font-bold rounded-2xl shadow-lg shadow-blue-800/20 hover:bg-blue-800 transition-all active:scale-95 group">
+            <i data-lucide="download" class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform"></i>
+            <span class="hidden sm:inline">Export Report</span>
           </button>
         </div>
       </header>
 
-      <!-- Sales Content -->
-      <div class="p-10 space-y-8">
-        
-        <!-- Search & Filter Area -->
-        <div class="bg-white/50 backdrop-blur-xl border border-white/40 p-6 rounded-4xl flex flex-col md:flex-row gap-4 items-center animate-bento">
+      <div class="p-8 space-y-8">
+        <!-- Search & Info -->
+        <div class="bg-white rounded-[2.5rem] border border-slate-100 p-2 shadow-sm flex flex-col md:flex-row items-center gap-4">
           <div class="relative flex-1 w-full">
-            <i data-lucide="search" class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5"></i>
-            <input type="text" x-model="searchQuery" placeholder="Filter by Sale ID, Medicine, or Department..." class="w-full pl-14 pr-6 py-5 bg-white border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-blue-800/5 focus:border-blue-800 transition-all text-sm shadow-sm font-medium">
+            <i data-lucide="search" class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i>
+            <input type="text" x-model="searchQuery" placeholder="Search by Transaction ID or Product Name..." class="w-full pl-14 pr-6 py-4 bg-transparent border-none focus:outline-none font-bold text-slate-700 text-sm">
           </div>
-          <div class="w-full md:w-64">
-            <input type="date" class="w-full px-6 py-5 bg-white border border-slate-100 rounded-3xl focus:outline-none focus:ring-4 focus:ring-blue-800/5 focus:border-blue-800 transition-all text-sm shadow-sm font-medium cursor-pointer">
-          </div>
-          <button class="w-16 h-16 flex items-center justify-center bg-white border border-slate-100 rounded-3xl hover:bg-slate-50 transition-colors shadow-sm">
-            <i data-lucide="sliders-horizontal" class="w-5 h-5 text-slate-600"></i>
-          </button>
+          <div class="px-6 py-3 bg-slate-50 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-widest" x-text="`${filteredSales.length} Transactions Found`"></div>
         </div>
 
-        <!-- Table View -->
-        <div class="glass-card rounded-4xl overflow-hidden animate-bento delay-2">
+        <!-- Table -->
+        <div class="bg-white rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="bg-slate-50/50">
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Transaction ID</th>
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Timestamp</th>
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Items Detail</th>
-                  <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Discount</th>
-                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Final Total</th>
-                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Status</th>
-                   <th class="px-8 py-6 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-center">Actions</th>
+                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Transaction</th>
+                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest hidden md:table-cell">Details</th>
+                  <th class="px-8 py-6 text-[11px] font-extrabold text-rose-400 uppercase tracking-widest hidden xl:table-cell text-center">Discount</th>
+                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest hidden lg:table-cell">Totals</th>
+                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest hidden sm:table-cell">Status</th>
+                  <th class="px-8 py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">Action</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-slate-100/50">
+              <tbody class="divide-y divide-slate-100">
                 <template x-if="isLoading">
-                    <tr>
-                        <td colspan="5" class="px-8 py-10 text-center text-slate-400 font-bold">
-                            <i data-lucide="loader-2" class="w-10 h-10 mx-auto mb-2 opacity-50 animate-spin"></i>
-                            Loading sales history...
-                        </td>
-                    </tr>
-                </template>
-                <template x-if="!isLoading && salesData.length === 0">
-                    <tr>
-                        <td colspan="5" class="px-8 py-10 text-center text-slate-400 font-bold">
-                            <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
-                            No sales history available yet.
-                        </td>
-                    </tr>
+                  <tr><td colspan="5" class="px-8 py-20 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse">Synchronizing Data...</td></tr>
                 </template>
                 <template x-for="sale in paginatedSales" :key="sale.rawId">
-                  <tr class="hover:bg-slate-50/30 transition-colors group">
+                  <tr class="hover:bg-slate-50/30 transition-colors group cursor-pointer" @click="selectedSale = sale; saleDetailsModal = true">
                     <td class="px-8 py-6">
-                      <span class="text-sm font-extrabold text-slate-800" x-text="sale.id"></span>
-                    </td>
-                    <td class="px-8 py-6">
-                      <p class="text-sm font-bold text-slate-700" x-text="sale.date"></p>
-                      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-tight" x-text="sale.time"></p>
-                    </td>
-                    <td class="px-8 py-6">
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm font-bold text-slate-700" x-text="sale.items"></span>
-                        <span class="w-1 h-1 bg-slate-300 rounded-full"></span>
-                        <span class="text-[10px] text-blue-900 font-bold uppercase" x-text="sale.units"></span>
+                      <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 bg-blue-50 text-blue-900 rounded-xl flex items-center justify-center font-black text-[10px]" x-text="sale.id.substring(0,2)"></div>
+                        <div>
+                          <p class="text-sm font-black text-slate-800 tracking-tight" x-text="sale.id"></p>
+                          <p class="text-[10px] text-slate-400 font-bold" x-text="sale.date"></p>
+                        </div>
                       </div>
                     </td>
-                    <td class="px-8 py-6 text-right">
-                      <span class="text-xs font-bold text-rose-500" x-text="sale.discount"></span>
+                    <td class="px-8 py-6 hidden md:table-cell">
+                      <p class="text-xs font-bold text-slate-700" x-text="sale.items"></p>
+                      <p class="text-[10px] text-slate-400 font-medium" x-text="sale.time"></p>
+                    </td>
+                    <td class="px-8 py-6 hidden xl:table-cell text-center">
+                      <p class="text-[11px] font-black text-rose-500 bg-rose-50 px-3 py-1 rounded-lg inline-block border border-rose-100/50" x-text="'- ' + sale.discount"></p>
+                    </td>
+                    <td class="px-8 py-6 hidden lg:table-cell">
+                      <p class="text-xs font-bold text-slate-500 line-through" x-text="sale.subtotal"></p>
+                      <p class="text-sm font-black text-emerald-600" x-text="sale.total"></p>
+                    </td>
+                    <td class="px-8 py-6 hidden sm:table-cell">
+                      <span :class="sale.status === 'Refunded' ? 'bg-rose-50 text-rose-600 border-rose-100' : (sale.cart && sale.cart.some(i => i.quantityRefunded > 0) ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100')" class="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border" x-text="sale.status === 'Refunded' ? 'Refunded' : (sale.cart && sale.cart.some(i => i.quantityRefunded > 0) ? 'Partial Refund' : 'Completed')"></span>
                     </td>
                     <td class="px-8 py-6 text-right">
-                      <span class="text-lg font-black text-blue-900 tracking-tight" x-text="sale.total"></span>
-                    </td>
-                    <td class="px-8 py-6 text-center">
-                      <span 
-                        :class="sale.status === 'Refunded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter border"
-                      >
-                        <span x-text="sale.status"></span>
-                      </span>
-                    </td>
-                    <td class="px-8 py-6">
-                      <div class="flex items-center justify-center gap-3">
-                        <button 
-                          @click="selectedSale = { id: sale.id, rawId: sale.rawId, date: sale.date + ' ' + sale.time, total: sale.total, discount: sale.discount, subtotal: sale.subtotal, itemsCount: parseInt(sale.items), items: sale.cart, status: sale.status }; saleDetailsModal = true"
-                          class="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-900 rounded-xl hover:bg-blue-900 hover:text-white transition-all shadow-sm cursor-pointer"
-                        >
-                          <i data-lucide="eye" class="w-4 h-4 pointer-events-none"></i>
-                        </button>
-                      </div>
+                       <button class="w-10 h-10 bg-slate-50 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl flex items-center justify-center transition-all ml-auto group-hover:shadow-sm">
+                         <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:text-blue-900"></i>
+                       </button>
                     </td>
                   </tr>
                 </template>
               </tbody>
             </table>
           </div>
-          
-          <!-- Pagination -->
-          <div class="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between" x-show="filteredSales.length > 0">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" 
-               x-text="`Showing ${(currentPage - 1) * itemsPerPage + 1} to ${Math.min(currentPage * itemsPerPage, filteredSales.length)} of ${filteredSales.length} entries`">
-            </p>
-            <div class="flex gap-2">
-              <button 
-                @click="prevPage" 
-                :disabled="currentPage === 1" 
-                :class="currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-300 hover:text-blue-900 cursor-pointer'" 
-                class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 transition-colors shadow-sm"
-              >
-                <i data-lucide="chevron-left" class="w-4 h-4"></i>
-              </button>
-              
-              <template x-for="i in totalPages" :key="i">
-                <button 
-                  @click="goToPage(i)" 
-                  class="w-10 h-10 flex items-center justify-center rounded-xl font-bold text-xs shadow-sm cursor-pointer transition-colors"
-                  :class="currentPage === i ? 'bg-blue-900 text-white shadow-lg shadow-blue-800/20 ring-4 ring-blue-800/10' : 'bg-white border border-slate-100 text-slate-600 hover:text-blue-900 hover:border-blue-300'"
-                  x-text="i"
-                ></button>
-              </template>
 
-              <button 
-                @click="nextPage" 
-                :disabled="currentPage === totalPages" 
-                :class="currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-300 hover:text-blue-900 cursor-pointer'" 
-                class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 transition-colors shadow-sm"
-              >
-                <i data-lucide="chevron-right" class="w-4 h-4"></i>
-              </button>
+          <!-- Pagination -->
+          <div class="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between" x-show="filteredSales.length > 0">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" x-text="`Page ${currentPage} of ${totalPages}`"></p>
+            <div class="flex gap-2">
+              <button @click="prevPage" :disabled="currentPage === 1" class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 disabled:opacity-50"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+              <button @click="nextPage" :disabled="currentPage === totalPages" class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 disabled:opacity-50"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
             </div>
           </div>
         </div>
@@ -634,10 +360,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script type="module" src="/src/main.js"></script>
     <script>
-      lucide.createIcons();
-      document.addEventListener('alpine:initialized', () => {
-        lucide.createIcons();
-      });
+      document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
+      document.addEventListener('alpine:initialized', () => { if (window.lucide) lucide.createIcons(); });
     </script>
   </body>
 </html>

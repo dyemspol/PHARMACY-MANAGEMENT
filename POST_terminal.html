@@ -122,6 +122,7 @@
         }
       }, 100);
 
+      // Listen for resize to sync sidebar state
       window.addEventListener('resize', () => {
          if (window.innerWidth >= 1024) this.sidebarOpen = true;
       });
@@ -133,6 +134,19 @@
       const expiry = new Date(dateStr);
       if (isNaN(expiry)) return 999;
       return (expiry - now) / (1000 * 60 * 60 * 24 * 30.44);
+    },
+
+    getStockLevel(stockStr) {
+      const stockNum = window.db.parseStock(stockStr);
+      if (stockNum <= 50) return 'low';
+      return 'normal';
+    },
+
+    getRowClass(expiryDateStr) {
+      const monthsLeft = this.getMonthsUntilExpiry(expiryDateStr);
+      if (monthsLeft <= 3) return 'bg-rose-50 text-rose-600 border-rose-100';
+      if (monthsLeft <= 6) return 'bg-amber-50 text-amber-600 border-amber-100';
+      return 'bg-slate-50 text-slate-500 border-slate-100';
     },
 
     addToCart(medicine) {
@@ -476,91 +490,89 @@
 
         <!-- Products Table -->
         <div class="flex-1 overflow-auto pr-2 -mr-2 glass-card rounded-3xl border border-slate-200 shadow-sm relative">
-          <table class="w-full text-left border-collapse min-w-[900px]">
+          <table class="w-full text-left border-collapse min-w-[700px] lg:min-w-[900px]">
             <thead>
               <tr class="bg-slate-50/80 sticky top-0 z-10">
-                <th class="px-6 py-4 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Product /
-                  Category</th>
-                <th class="px-6 py-4 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Brand Name
-                </th>
-                <th class="px-6 py-4 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                  Strength</th>
-                <th class="px-6 py-4 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                  Type</th>
-                <th class="px-6 py-4 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                  Stock</th>
-                <th class="px-6 py-4 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                  Expiry Date</th>
-                <th class="px-6 py-4 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center">
-                  Price</th>
-                <th class="px-6 py-4 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-right">
-                  Action</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Product / Category</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hidden md:table-cell">Brand Name</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hidden lg:table-cell">Strength</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hidden xl:table-cell">Type</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hidden xl:table-cell">Location</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Stock</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] hidden sm:table-cell">Expiry Date</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Price</th>
+                <th class="px-4 md:px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] text-center">Action</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <template
-                x-for="med in medicines.filter(m => (selectedCategory === 'All' || m.category === selectedCategory) && (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.brandName && m.brandName.toLowerCase().includes(searchQuery.toLowerCase())) || m.category.toLowerCase().includes(searchQuery.toLowerCase()))).sort((a, b) => a.name.localeCompare(b.name))"
+                x-for="med in medicines.filter(m => (selectedCategory === 'All' || m.category === selectedCategory) && (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.brandName && m.brandName.toLowerCase().includes(searchQuery.toLowerCase())) || (m.strength && m.strength.toLowerCase().includes(searchQuery.toLowerCase())) || m.category.toLowerCase().includes(searchQuery.toLowerCase()))).sort((a, b) => a.name.localeCompare(b.name))"
                 :key="med.id">
                 <tr @click="addToCart(med)" class="hover:bg-slate-50 transition-colors cursor-pointer group">
                   <!-- Product & Category -->
-                  <td class="px-6 py-4">
-                    <div class="flex items-center gap-3">
+                  <td class="px-4 md:px-6 py-4">
+                    <div class="flex items-center gap-3 md:gap-4">
                       <div
-                        class="w-10 h-10 bg-blue-50 text-blue-900 flex items-center justify-center font-bold text-sm border border-blue-100 group-hover:scale-110 transition-transform"
+                        class="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm md:text-lg border border-blue-100 group-hover:scale-110 transition-transform rounded-xl"
                         x-text="med.name.charAt(0)"></div>
                       <div class="flex flex-col">
-                        <span class="text-sm font-bold text-slate-800" x-text="med.name"></span>
-                        <span class="text-[9px] font-black uppercase text-slate-400 tracking-widest"
+                        <span class="text-sm md:text-base font-extrabold text-slate-800" x-text="med.name"></span>
+                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-slate-400 tracking-widest"
                           x-text="med.category"></span>
                       </div>
                     </div>
                   </td>
 
                   <!-- Brand Name -->
-                  <td class="px-6 py-4">
+                  <td class="px-4 md:px-6 py-4 hidden md:table-cell">
                     <template x-if="med.brandName">
                       <span
-                        class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100/50"
+                        class="px-2 md:px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] md:text-[10px] font-bold border border-blue-100/50"
                         x-text="med.brandName"></span>
                     </template>
                     <template x-if="!med.brandName">
-                      <span class="text-xs font-medium text-slate-300">N/A</span>
+                      <span class="text-slate-300 text-[10px] font-medium italic">N/A</span>
                     </template>
                   </td>
 
                   <!-- Strength -->
-                  <td class="px-6 py-4 text-center">
-                    <span class="text-xs font-bold text-slate-600"
-                      x-text="med.strength || (med.name.match(/\d+\s?(mg)?$/i) ? med.name.match(/\d+\s?(mg)?$/i)[0].replace(/mg$/i, '') : 'N/A')"></span>
+                  <td class="px-4 md:px-6 py-4 hidden lg:table-cell">
+                    <span class="text-xs md:text-sm font-bold text-slate-600"
+                      x-text="med.strength || 'N/A'"></span>
                   </td>
 
                   <!-- Type -->
-                  <td class="px-6 py-4 text-center">
+                  <td class="px-4 md:px-6 py-4 hidden xl:table-cell">
                     <span
                       :class="med.type === 'Branded' ? 'bg-rose-50 text-rose-600 border-rose-100/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100/50'"
-                      class="px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest rounded-full border inline-block"
-                      x-text="med.type || 'N/A'"></span>
+                      class="px-2 md:px-3 py-1 rounded-lg text-[9px] md:text-[10px] font-bold border"
+                      x-text="med.type || 'GENERIC'"></span>
                   </td>
+
+                  <!-- Location -->
+                  <td class="px-4 md:px-6 py-4 hidden xl:table-cell">
+                    <span class="text-[10px] md:text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100" x-text="med.location || 'N/A'"></span>
+                  </td>
+                  
                   <!-- Stock -->
-                  <td class="px-6 py-4 text-center">
-                    <span
-                      :class="parseInt(String(med.stock).replace(' units','')) < 10 ? 'text-rose-500 bg-rose-50' : 'text-slate-500 bg-slate-50'"
-                      class="text-[10px] font-bold px-2 py-1 rounded-md" x-text="med.stock"></span>
+                  <td class="px-4 md:px-6 py-4">
+                    <div class="flex flex-col items-center">
+                      <span class="text-xs md:text-sm font-black" :class="getStockLevel(med.stock) === 'low' ? 'text-rose-500' : 'text-slate-700'"
+                        x-text="window.db.parseStock(med.stock)"></span>
+                      <span class="text-[8px] md:text-[9px] text-slate-400 font-bold uppercase" x-text="window.db.getStockUnit(med.stock)"></span>
+                    </div>
                   </td>
 
                   <!-- Expiry Date -->
-                  <td class="px-6 py-4 text-center">
-                    <span :class="{
-                          'text-rose-600 bg-rose-50 border-rose-100': getMonthsUntilExpiry(med.expiryDate) <= 3,
-                          'text-amber-600 bg-amber-50 border-amber-100': getMonthsUntilExpiry(med.expiryDate) > 3 && getMonthsUntilExpiry(med.expiryDate) <= 6,
-                          'text-slate-500 bg-slate-50 border-slate-100': getMonthsUntilExpiry(med.expiryDate) > 6
-                        }" class="text-[10px] font-bold px-2 py-1 rounded-md border"
-                      x-text="med.expiryDate || 'N/A'"></span>
+                  <td class="px-4 md:px-6 py-4 hidden sm:table-cell">
+                    <div :class="getRowClass(med.expiryDate)" class="px-2 md:px-3 py-1 rounded-lg text-center border">
+                      <div class="text-[9px] md:text-[10px] font-bold" x-text="med.expiryDate || 'N/A'"></div>
+                    </div>
                   </td>
 
                   <!-- Price -->
-                  <td class="px-6 py-4 text-center">
-                    <span class="text-sm font-black text-slate-900" x-text="med.sellingPrice"></span>
+                  <td class="px-4 md:px-6 py-4">
+                    <span class="text-sm md:text-base font-black text-slate-800" x-text="'₱' + med.sellingPrice"></span>
                   </td>
 
                   <!-- Action -->

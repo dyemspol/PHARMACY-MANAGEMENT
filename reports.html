@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -36,7 +36,8 @@
     <script>
       document.addEventListener('alpine:init', () => {
         Alpine.data('reportsData', () => ({
-          sidebarOpen: window.innerWidth > 1024,
+          sidebarOpen: window.innerWidth >= 1024,
+          currentUser: window.auth.getCurrentUser(),
           allSalesData: [],
           salesData: [],
           inventoryData: [],
@@ -61,6 +62,9 @@
           dateDropdownOpen: false,
 
           async init() {
+            window.addEventListener('resize', () => {
+                if (window.innerWidth >= 1024) this.sidebarOpen = true;
+            });
             this.startDate = this.localToday;
             this.endDate = this.localToday;
             
@@ -136,30 +140,24 @@
               return;
             }
             
-            // Critical Fix: Parse date manually to avoid timezone shifting
             const [year, month, day] = this.startDate.split('-').map(Number);
-            let start = new Date(year, month - 1, day, 12, 0, 0); // Use mid-day to avoid timezone rolling
+            let start = new Date(year, month - 1, day, 12, 0, 0); 
             
             if (this.period === 'Daily') {
               this.endDate = this.startDate;
             } else if (this.period === 'Weekly') {
-              // Standard PH week snap (Sunday to Saturday)
               const dayOfWeek = start.getDay(); 
               start.setDate(start.getDate() - dayOfWeek);
-              
               const y = start.getFullYear();
               const m = String(start.getMonth() + 1).padStart(2, '0');
               const d = String(start.getDate()).padStart(2, '0');
               this.startDate = `${y}-${m}-${d}`;
-              
               const end = new Date(start);
               end.setDate(start.getDate() + 6);
               this.endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
             } else if (this.period === 'Monthly') {
-              // Snap to start/end of the reference month
               const first = new Date(start.getFullYear(), start.getMonth(), 1, 12, 0, 0);
               const last = new Date(start.getFullYear(), start.getMonth() + 1, 0, 12, 0, 0);
-              
               this.startDate = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-${String(first.getDate()).padStart(2, '0')}`;
               this.endDate = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
             }
@@ -180,15 +178,12 @@
             const revenues = this.salesData.reduce((acc, sale) => {
               const paid = window.db.parseCurrency(sale.total);
               const disc = parseFloat(sale.discountApplied) || 0;
-              
-              // Calculate refunds for this sale
               const items = Array.isArray(sale.items) ? sale.items : (sale.cart || []);
               const refundAmount = items.reduce((rSum, item) => {
                 const itemPrice = item.price || 0;
                 const qtyRefunded = item.quantityRefunded || 0;
                 return rSum + (itemPrice * qtyRefunded);
               }, 0);
-
               acc.gross += (paid + disc);
               acc.disc += disc;
               acc.paid += paid;
@@ -199,7 +194,7 @@
             this.totalRevenue = revenues.gross;
             this.totalDiscounts = revenues.disc;
             this.totalRefunds = revenues.refunds;
-            this.actualRevenue = revenues.paid - revenues.refunds; // Actual cash on hand
+            this.actualRevenue = revenues.paid - revenues.refunds; 
             this.averageTransaction = this.totalTransactions > 0 ? (this.actualRevenue / this.totalTransactions) : 0;
             let exactCost = 0;
             this.salesData.forEach(s => {
@@ -211,8 +206,7 @@
                 }
                 const qtyPurchased = item.quantityPurchased || item.quantity || 1;
                 const qtyRefunded = item.quantityRefunded || 0;
-                const qty = qtyPurchased - qtyRefunded; // Only count non-refunded items for cost/profit
-                
+                const qty = qtyPurchased - qtyRefunded;
                 const price = item.price || item.numericPrice || (typeof item.sellingPrice === 'string' ? parseFloat(item.sellingPrice.replace('₱','')) : 0) || 0;
                 exactCost += (cost > 0 ? (cost * qty) : (price * qty * 0.7));
               });
@@ -305,21 +299,16 @@
       });
     </script>
 
-    
     <div class="bg-reports-mesh"></div>
 
     <!-- Sidebar -->
-    <aside 
-      class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0"
-      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-    >
+    <aside class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
         <div class="px-6 py-8">
           <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
-              <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
+            <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
           </a>
         </div>
-
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
           <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
           <a href="index.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
@@ -330,63 +319,41 @@
           <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
           <a href="printer_settings.html" class="nav-link w-full"><i data-lucide="printer" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Printer Setup</span></a>
         </nav>
-
         <div class="p-6 mt-auto">
-          <button @click="window.auth.logout()" class="w-full flex items-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
-            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i>
-            <span>Logout Account</span>
+          <button @click="window.auth.logout()" class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-2xl transition-all duration-300 font-bold text-sm group">
+            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i><span>Logout Account</span>
           </button>
         </div>
       </div>
     </aside>
 
     <main class="lg:ml-72 min-h-screen transition-all duration-500">
-      
-      <header class="h-24 flex items-center justify-between px-10 sticky top-0 z-40">
-          <div class="flex items-center gap-4 md:gap-6">
-            <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
-              <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6"></i>
-            </button>
-            <div>
-              <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Reports & Insights</h2>
-              <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap uppercase tracking-widest">Business Intelligence Dashboard</p>
-            </div>
+      <header class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-5 sticky top-0 z-40 bg-white/40 backdrop-blur-md border-b border-white/20">
+        <div class="flex items-center gap-4 md:gap-6">
+          <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
+            <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6 text-slate-600"></i>
+          </button>
+          <div>
+            <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Reports & Insights</h2>
+            <p class="text-[10px] md:text-sm text-slate-400 font-medium uppercase tracking-widest mt-1">Business Intelligence Dashboard</p>
           </div>
+        </div>
       </header>
 
       <div class="p-6 md:p-10 space-y-12">
-        
         <!-- Step 1: Unified Analysis Console -->
         <div class="bg-white rounded-[3rem] border border-slate-100 p-2 shadow-sm animate-bento">
           <div class="flex flex-col lg:flex-row items-center gap-2">
-            
             <!-- Group 1: Time Perspective Buttons -->
             <div class="flex items-center gap-1 bg-slate-50 p-1.5 rounded-[2.5rem] w-full lg:w-fit shrink-0">
-               <button 
-                  @click="setPreset('Today')" 
-                  :class="period === 'Daily' ? 'bg-white shadow-lg text-blue-900 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" 
-                  class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all"
-               >Daily</button>
-               <button 
-                  @click="setPreset('This Week')" 
-                  :class="period === 'Weekly' ? 'bg-white shadow-lg text-blue-900 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" 
-                  class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all"
-               >Weekly</button>
-               <button 
-                  @click="setPreset('This Month')" 
-                  :class="period === 'Monthly' ? 'bg-white shadow-lg text-blue-900 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" 
-                  class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all"
-               >Monthly</button>
-               <button 
-                  @click="period = 'Custom Range'; updateRange()" 
-                  :class="period === 'Custom Range' ? 'bg-white shadow-lg text-blue-900 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" 
-                  class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all"
-               >Pick Range</button>
+               <button @click="setPreset('Today')" :class="period === 'Daily' ? 'bg-white shadow-lg text-blue-900 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all">Daily</button>
+               <button @click="setPreset('This Week')" :class="period === 'Weekly' ? 'bg-white shadow-lg text-blue-900 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all">Weekly</button>
+               <button @click="setPreset('This Month')" :class="period === 'Monthly' ? 'bg-white shadow-lg text-blue-900 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all">Monthly</button>
+               <button @click="period = 'Custom Range'; updateRange()" :class="period === 'Custom Range' ? 'bg-white shadow-lg text-blue-900 font-extrabold' : 'text-slate-500 font-bold hover:text-slate-800'" class="flex-1 lg:flex-none px-6 py-3 rounded-[2rem] text-[10px] uppercase tracking-widest transition-all">Pick Range</button>
             </div>
 
             <!-- Group 2: Contextual Input Form -->
             <div class="flex-1 flex items-center justify-between pl-6 pr-4 py-2 w-full lg:w-auto overflow-hidden">
-               
                <!-- Standard View (D/W/M) -->
                <div x-show="period !== 'Custom Range'" class="flex items-center gap-6 w-full animate-in fade-in slide-in-from-left-2 duration-300">
                   <div class="flex flex-col">
@@ -410,7 +377,7 @@
                <!-- Custom View (Date Range Picker) -->
                <div x-show="period === 'Custom Range'" class="flex items-center gap-6 w-full animate-in zoom-in-95 duration-300">
                   <div class="flex flex-col">
-                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none rotate-picker">Start of Range</span>
+                     <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Start of Range</span>
                      <input type="date" x-model="startDate" @change="calculateMetrics(); calculateTopSelling();" class="bg-transparent border-none text-[12px] font-black text-slate-800 outline-none cursor-pointer focus:text-blue-900 transition-colors">
                   </div>
                   <i data-lucide="arrow-right-left" class="w-4 h-4 text-slate-200"></i>
@@ -419,7 +386,6 @@
                      <input type="date" x-model="endDate" @change="calculateMetrics(); calculateTopSelling();" class="bg-transparent border-none text-[12px] font-black text-slate-800 outline-none cursor-pointer focus:text-blue-900 transition-colors">
                   </div>
                </div>
-
             </div>
           </div>
         </div>
@@ -500,7 +466,7 @@
                 </div>
                 <div class="space-y-4">
                   <template x-if="isLoading"><div class="p-12 text-center text-slate-300 font-bold text-xs uppercase animate-pulse">Scanning History...</div></template>
-                  <template x-if="!isLoading && topSelling.length === 0"><div class="p-12 text-center text-slate-400 text-xs font-bold font-black">NO SALES RECORDED</div></template>
+                  <template x-if="!isLoading && topSelling.length === 0"><div class="p-12 text-center text-slate-400 text-xs font-bold">NO SALES RECORDED</div></template>
                   <template x-for="(med, idx) in topSelling">
                     <div class="flex items-center justify-between p-4 bg-slate-50/50 rounded-3xl border border-slate-100">
                       <div class="flex items-center gap-4">
@@ -555,7 +521,7 @@
           <div class="flex items-center justify-between px-4 pt-12 border-t border-slate-100/50">
             <div>
               <h4 class="text-xl font-black text-slate-800 tracking-tight leading-none uppercase">Export Records</h4>
-              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Download current filtered results for archival</p>
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">Download results for archival</p>
             </div>
           </div>
 
@@ -597,7 +563,6 @@
             </button>
           </div>
         </div>
-
       </div>
     </main>
 

@@ -1,6 +1,7 @@
 function dashboardApp() {
   return {
-    sidebarOpen: window.innerWidth > 1024,
+    sidebarOpen: window.innerWidth >= 1024,
+    currentUser: window.auth.getCurrentUser(),
     inventory: [],
     allSales: [],
     sales: [],
@@ -41,6 +42,9 @@ function dashboardApp() {
     },
 
     init() {
+      window.addEventListener('resize', () => {
+        if (window.innerWidth >= 1024) this.sidebarOpen = true;
+      });
       const checkDB = setInterval(() => {
         if (window.db && window.salesDb) {
           clearInterval(checkDB);
