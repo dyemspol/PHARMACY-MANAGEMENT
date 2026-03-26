@@ -74,10 +74,14 @@
                         };
                     });
                     this.isLoading = false;
-                    setTimeout(() => { if(window.lucide) lucide.createIcons(); }, 50);
+                    this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
                 });
             }
         }, 100);
+
+        // Re-initialize icons when searching or changing pages
+        this.$watch('searchQuery', () => this.$nextTick(() => { if(window.lucide) lucide.createIcons(); }));
+        this.$watch('currentPage', () => this.$nextTick(() => { if(window.lucide) lucide.createIcons(); }));
     },
     exportCSV() {
         if (!this.salesData || this.salesData.length === 0) {
@@ -334,11 +338,11 @@
                     <td class="px-8 py-6 hidden sm:table-cell">
                       <span :class="sale.status === 'Refunded' ? 'bg-rose-50 text-rose-600 border-rose-100' : (sale.cart && sale.cart.some(i => i.quantityRefunded > 0) ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100')" class="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border" x-text="sale.status === 'Refunded' ? 'Refunded' : (sale.cart && sale.cart.some(i => i.quantityRefunded > 0) ? 'Partial Refund' : 'Completed')"></span>
                     </td>
-                    <td class="px-8 py-6 text-right">
-                       <button class="w-10 h-10 bg-slate-50 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl flex items-center justify-center transition-all ml-auto group-hover:shadow-sm">
-                         <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 group-hover:text-blue-900"></i>
-                       </button>
-                    </td>
+                     <td class="px-8 py-6 text-right">
+                        <button class="w-10 h-10 bg-slate-50 text-blue-900 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl flex items-center justify-center transition-all ml-auto group-hover:shadow-sm">
+                          <i data-lucide="eye" class="w-4 h-4 transition-all group-hover:scale-110"></i>
+                        </button>
+                     </td>
                   </tr>
                 </template>
               </tbody>

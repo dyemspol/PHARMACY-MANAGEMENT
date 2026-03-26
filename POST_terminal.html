@@ -118,9 +118,14 @@
         if (window.db) {
           clearInterval(waitForDb);
           this.medicines = await window.db.fetchInventory();
-          lucide.createIcons();
+          this.$nextTick(() => lucide.createIcons());
         }
       }, 100);
+
+      // Re-initialize icons when filtering, searching or cart changes
+      this.$watch('searchQuery', () => this.$nextTick(() => lucide.createIcons()));
+      this.$watch('selectedCategory', () => this.$nextTick(() => lucide.createIcons()));
+      this.$watch('cart', () => this.$nextTick(() => lucide.createIcons()));
 
       // Listen for resize to sync sidebar state
       window.addEventListener('resize', () => {
@@ -578,7 +583,7 @@
                   <!-- Action -->
                   <td class="px-6 py-4 text-right">
                     <button
-                      class="w-10 h-10 bg-slate-50 group-hover:bg-blue-900 group-hover:text-white rounded-2xl flex items-center justify-center transition-all shadow-sm border border-slate-100 group-hover:border-blue-800">
+                      class="w-10 h-10 bg-slate-50 text-blue-900 group-hover:bg-blue-900 group-hover:text-white rounded-2xl flex items-center justify-center transition-all shadow-sm border border-slate-100 group-hover:border-blue-800">
                       <i data-lucide="plus" class="w-5 h-5"></i>
                     </button>
                   </td>
@@ -644,12 +649,12 @@
               <div class="flex items-center gap-2">
                 <button @click="if(item.quantity > 1) item.quantity--; else removeFromCart(item.id)"
                   class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:border-rose-500 hover:text-rose-500 transition-colors">
-                  <span class="text-base font-bold select-none">-</span>
+                  <i data-lucide="minus" class="w-4 h-4"></i>
                 </button>
                 <span class="text-base font-black text-slate-800 w-6 text-center" x-text="item.quantity"></span>
                 <button @click="item.quantity++"
                   class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:border-blue-800 hover:text-blue-900 transition-colors">
-                  <span class="text-base font-bold select-none">+</span>
+                  <i data-lucide="plus" class="w-4 h-4"></i>
                 </button>
               </div>
             </div>
