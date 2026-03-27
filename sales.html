@@ -37,11 +37,45 @@
     salesData: [],
     isLoading: true,
     currentUser: window.auth.getCurrentUser(),
+    todayStr: new Date().toLocaleDateString('en-CA'),
+
+    get isEmployee() { return this.currentUser?.role === 'employee'; },
+
+    // Today's summary stats for employee banner
+    get todaySales() {
+        if (!this.isEmployee) return [];
+        const uname = this.currentUser?.username || '';
+        return this.salesData.filter(s => s.isoDate === this.todayStr && (s.cashierUsername === uname || s.cashierName === uname));
+    },
+    get todayTxCount() { return this.todaySales.length; },
+    get todayGross() {
+        return this.todaySales.reduce((sum, s) => {
+            const v = parseFloat((s.subtotal || '0').replace('₱','').replace(/,/g,'')) || 0;
+            return sum + v;
+        }, 0);
+    },
+    get todayNet() {
+        return this.todaySales.reduce((sum, s) => {
+            const v = parseFloat((s.total || '0').replace('₱','').replace(/,/g,'')) || 0;
+            return sum + v;
+        }, 0);
+    },
+    get todayDiscount() {
+        return this.todaySales.reduce((sum, s) => {
+            const v = parseFloat((s.discount || '0').replace('₱','').replace(/,/g,'')) || 0;
+            return sum + v;
+        }, 0);
+    },
 
     init() {
         window.addEventListener('resize', () => {
             if (window.innerWidth >= 1024) this.sidebarOpen = true;
         });
+
+        // Pre-fill search to today's date if employee
+        if (this.isEmployee) {
+            this.searchQuery = '';
+        }
 
         const waitForDb = setInterval(() => {
             if (window.salesDb) {
@@ -56,6 +90,9 @@
                             id: (data.transactionId || data.id).substring(0, 10).toUpperCase(),
                             rawId: data.id,
                             date: data.date,
+                            isoDate: data.isoDate || data.date,
+                            cashierName: data.cashierName || '',
+                            cashierUsername: data.cashierUsername || '',
                             time: data.time,
                             status: data.status || 'Completed',
                             items: `${count} item(s)`,
@@ -108,11 +145,17 @@
     selectedSale: { id: '', rawId: '', date: '', subtotal: '₱0.00', discount: '₱0.00', total: '₱0.00', itemsCount: 0, status: 'Completed', cart: [] },
     searchQuery: '',
     get filteredSales() {
-        if (this.searchQuery.trim() === '') return this.salesData;
-        const query = this.searchQuery.toLowerCase();
-        return this.salesData.filter(sale => 
-            sale.id.toLowerCase().includes(query) || 
-            (sale.cart && sale.cart.some(item => item.name.toLowerCase().includes(query)))
+        // Employees see only their own today's sales
+        let base = this.salesData;
+        if (this.isEmployee) {
+            const uname = this.currentUser?.username || '';
+            base = base.filter(s => s.isoDate === this.todayStr && (s.cashierUsername === uname || s.cashierName === uname));
+        }
+        if (this.searchQuery.trim() === '') return base;
+        const q = this.searchQuery.toLowerCase();
+        return base.filter(sale =>
+            sale.id.toLowerCase().includes(q) ||
+            (sale.cart && sale.cart.some(item => item.name.toLowerCase().includes(q)))
         );
     },
     currentPage: 1,
@@ -253,7 +296,7 @@
           <a href="inventory.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
           <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span class="font-semibold text-[15px]">POS Terminal</span></a>
           <a href="sales.html" class="nav-link w-full active"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Sales History</span></a>
-          <a href="reports.html" class="nav-link w-full"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
+          <a href="reports.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
           <a href="accounts.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
           <a href="printer_settings.html" class="nav-link w-full"><i data-lucide="printer" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Printer Setup</span></a>
         </nav>
@@ -274,7 +317,10 @@
           </button>
           <div>
             <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight">Sales History</h2>
-            <p class="text-[10px] md:text-sm text-slate-400 font-medium uppercase tracking-widest mt-1">Order Log & Financial Tracking</p>
+            <div class="flex items-center gap-2 mt-1">
+              <p class="text-[10px] md:text-sm text-slate-400 font-medium uppercase tracking-widest">Order Log &amp; Financial Tracking</p>
+              <span x-show="isEmployee" x-cloak class="px-2 py-0.5 bg-blue-900 text-white text-[9px] font-black rounded-md uppercase tracking-widest">Your Sales Today</span>
+            </div>
           </div>
         </div>
         <div class="flex items-center gap-3">
@@ -286,6 +332,42 @@
       </header>
 
       <div class="p-8 space-y-8">
+
+        <!-- Employee: Today's Summary Banner -->
+        <div x-show="isEmployee" x-cloak class="rounded-[2rem] bg-gradient-to-br from-blue-900 to-blue-800 p-6 text-white shadow-xl shadow-blue-900/20">
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center">
+              <i data-lucide="user-circle" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-widest text-blue-200">Logged in as</p>
+              <p class="text-sm font-extrabold" x-text="currentUser?.name || currentUser?.username"></p>
+            </div>
+            <div class="ml-auto text-right">
+              <p class="text-[10px] font-bold text-blue-200 uppercase tracking-widest">Today</p>
+              <p class="text-sm font-black" x-text="new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})"></p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white/10 rounded-2xl p-4 text-center">
+              <p class="text-[9px] font-black uppercase tracking-widest text-blue-200 mb-1">Transactions</p>
+              <p class="text-2xl font-black" x-text="todayTxCount"></p>
+            </div>
+            <div class="bg-white/10 rounded-2xl p-4 text-center">
+              <p class="text-[9px] font-black uppercase tracking-widest text-rose-200 mb-1">Tot. Discount</p>
+              <p class="text-2xl font-black text-rose-100" x-text="'₱' + todayDiscount.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+            </div>
+            <div class="bg-white/10 rounded-2xl p-4 text-center">
+              <p class="text-[9px] font-black uppercase tracking-widest text-blue-200 mb-1">Gross Sales</p>
+              <p class="text-2xl font-black" x-text="'₱' + todayGross.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+            </div>
+            <div class="bg-white/10 rounded-2xl p-4 text-center">
+              <p class="text-[9px] font-black uppercase tracking-widest text-blue-200 mb-1">Net Sales</p>
+              <p class="text-2xl font-black" x-text="'₱' + todayNet.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+            </div>
+          </div>
+        </div>
+
         <!-- Search & Info -->
         <div class="bg-white rounded-[2.5rem] border border-slate-100 p-2 shadow-sm flex flex-col md:flex-row items-center gap-4">
           <div class="relative flex-1 w-full">

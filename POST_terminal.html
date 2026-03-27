@@ -100,8 +100,12 @@
     selectedCategory: 'All',
     medicines: [],
     printerStatus: 'disconnected',
+    currentUser: null,
     
     async init() {
+      // Initialize current user
+      this.currentUser = window.auth.getCurrentUser();
+      
       // Initialize printer status
       if (window.printerService) {
         this.printerStatus = window.printerService.isConnected() ? 'ready' : 'disconnected';
@@ -177,6 +181,8 @@
       if (existing) {
         if (existing.quantity < stockNum) {
           existing.quantity++;
+        } else {
+          alert(`Maximum stock reached! Only ${stockNum} units available.`);
         }
       } else if (stockNum > 0) {
         this.cart.push({ ...medicine, quantity: 1, isSenior: false });
@@ -241,7 +247,7 @@
             total: this.getTotal(),
             cash: parseFloat(this.cashAmount) || 0,
             change: this.changeAmount,
-            cashierName: this.currentUser?.username || 'Admin / Cashier'
+            cashierName: this.currentUser?.name || this.currentUser?.username || 'Admin / Cashier'
           };
           
           const success = await window.printerService.printReceipt(receiptData);
@@ -289,9 +295,15 @@
         if (med) {
           let currentStockNum = parseInt(String(med.stock).replace(' units', ''));
           let newStockNum = Math.max(0, currentStockNum - item.quantity);
-          let newStockStr = newStockNum + ' units';
-          med.stock = newStockStr;
-          await window.db.updateInventoryItem(med.id, { stock: newStockStr });
+          
+          if (newStockNum === 0) {
+            await window.db.deleteInventoryItem(med.id);
+            this.medicines = this.medicines.filter(m => m.id !== med.id);
+          } else {
+            let newStockStr = newStockNum + ' units';
+            med.stock = newStockStr;
+            await window.db.updateInventoryItem(med.id, { stock: newStockStr });
+          }
         }
       }
       
@@ -300,6 +312,7 @@
       
       const saleDataToSave = {
           date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          isoDate: new Date().toLocaleDateString('en-CA'),
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
           items: this.cart.map(item => ({
              id: item.id,
@@ -317,6 +330,8 @@
           discountApplied: this.getTotalDiscount(),
           isSeniorDiscountApplied: this.getTotalDiscount() > 0,
           staff: 'System Admin',
+          cashierName: this.currentUser?.name || this.currentUser?.username || 'Admin / Cashier',
+          cashierUsername: this.currentUser?.username || 'admin',
           transactionId: this.lastTransactionId,
           status: 'Completed',
           createdAt: new Date()
@@ -393,7 +408,7 @@
           <span class="font-semibold text-[15px]">Sales History</span>
         </a>
 
-        <a href="reports.html" class="nav-link w-full">
+        <a href="reports.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
           <i data-lucide="file-text" class="w-5 h-5"></i>
           <span class="font-semibold text-[15px]">Reports</span>
         </a>
@@ -652,7 +667,7 @@
                   <i data-lucide="minus" class="w-4 h-4"></i>
                 </button>
                 <span class="text-base font-black text-slate-800 w-6 text-center" x-text="item.quantity"></span>
-                <button @click="item.quantity++"
+                <button @click="let max = window.db.parseStock(medicines.find(m => m.id === item.id)?.stock || 0); if (item.quantity < max) item.quantity++; else alert(`Maximum stock reached! Only ${max} units available.`)"
                   class="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-xl hover:border-blue-800 hover:text-blue-900 transition-colors">
                   <i data-lucide="plus" class="w-4 h-4"></i>
                 </button>
@@ -758,7 +773,7 @@
     </div>
 
     <div style="text-align: left; font-size: 12px; font-family: monospace; margin-bottom: 10px;">
-      <p style="margin: 2px 0;">Employee: <span x-text="currentUser.username || 'Admin / Cashier'"></span></p>
+      <p style="margin: 2px 0;">Employee: <span x-text="currentUser?.name || currentUser?.username || 'Admin / Cashier'"></span></p>
     </div>
 
     <div

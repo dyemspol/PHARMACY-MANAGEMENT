@@ -139,7 +139,7 @@ window.auth = {
         } else if (user && isLoginPage) {
             window.location.href = user.role === 'admin' ? 'index.html' : 'POST_terminal.html';
         } else if (user && user.role === 'employee') {
-            const restrictedPages = ['index.html', 'inventory.html', 'accounts.html'];
+            const restrictedPages = ['index.html', 'inventory.html', 'accounts.html', 'reports.html'];
             const currentPage = path.split('/').pop() || (isRoot ? 'index.html' : '');
             
             if (restrictedPages.includes(currentPage)) {
