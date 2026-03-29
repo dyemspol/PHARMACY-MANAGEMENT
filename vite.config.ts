@@ -8,27 +8,35 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'inline',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      devOptions: {
+        enabled: true
+      },
       manifest: {
-        name: 'Pharmacy Management System',
-        short_name: 'PharmacyMS',
+        name: 'RiGHT MEDS Pharmacy System',
+        short_name: 'RiGHT MEDS',
         description: 'Advanced Pharmacy Management and Inventory System',
-        theme_color: '#0d9488',
+        theme_color: '#1e40af',
         background_color: '#ffffff',
         display: 'standalone',
+        start_url: '/login.html',
+        scope: '/',
+        id: '/',
+        orientation: 'portrait',
         icons: [
           {
-            src: 'riteMed.png',
+            src: 'pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'riteMed.png',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png'
           },
           {
-            src: 'riteMed.png',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

@@ -3,9 +3,15 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/src/img/riteMed.png" />
+  <link rel="icon" type="image/png" href="/pwa-192x192.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>POS Terminal | DavaoDeOro</title>
+  <meta name="theme-color" content="#1e40af" />
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/pwa-512x512.png">
+  <title>POS Terminal | RiGHT MEDS</title>
   <link href="/src/style.css" rel="stylesheet" />
 
   <!-- Fonts -->
@@ -379,7 +385,7 @@
       <div class="px-6 py-8">
         <a href="index.html"
           class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
-          <img src="/src/img/riteMed.png" alt="Logo"
+          <img src="/src/img/logo.png.jpg" alt="Logo"
             class="w-full h-auto object-contain transition-transform group-hover:scale-110">
         </a>
       </div>
@@ -446,7 +452,7 @@
         </button>
         <div>
           <h1 class="text-xl font-bold text-slate-900 tracking-tight">Point of Sale</h1>
-          <p class="text-xs text-slate-500 font-medium hidden sm:block">DavaoDeOro Pharmacy Management</p>
+          <p class="text-xs text-slate-500 font-medium hidden sm:block">RiGHT MEDS Pharmacy Management</p>
         </div>
       </div>
 
@@ -762,8 +768,7 @@
   <div id="receipt-print" class="hidden"
     style="display: none; padding: 20px; max-width: 300px; margin: 0 auto; color: #000; background: #fff;">
     <div style="font-family: monospace; text-align: center; margin-bottom: 20px;">
-      <h2 style="margin: 0; font-weight: bold; font-size: 24px;">RIGHT MED</h2>
-      <p style="margin: 5px 0;">PHARMACY AND MEDICAL SUPPLY</p>
+      <img src="/src/img/logo.png.jpg" alt="Logo" style="width: 100px; height: auto; margin: 0 auto 15px; display: block; filter: grayscale(100%);">
       <div style="margin-top: 15px; font-size: 12px;">
         <p style="margin: 2px 0;">Mendez Town Square, Townsite,</p>
         <p style="margin: 2px 0;">Kingking Pantukan, Davao de Oro</p>

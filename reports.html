@@ -2,9 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/img/riteMed.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reports & Analytics | DavaoDeOro</title>
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1e40af" />
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/pwa-512x512.png">
+    <title>Reports & Analytics | RiGHT MEDS</title>
     <link href="/src/style.css" rel="stylesheet" />
     
     <!-- Fonts -->
@@ -281,6 +287,25 @@
             this.downloadCSV(csv, 'Slow_Moving_Inventory.csv');
           },
 
+          exportExpiredReport() {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            const expiredItems = this.inventoryData.filter(item => {
+              if (!item.expiryDate || item.expiryDate === 'N/A') return false;
+              const expiry = new Date(item.expiryDate);
+              return !isNaN(expiry) && expiry < now;
+            });
+            if (expiredItems.length === 0) {
+              alert('No expired products detected in inventory.');
+              return;
+            }
+            let csv = '"Product Name","Category","Stock","Expiry Date"\n';
+            expiredItems.forEach(i => {
+              csv += `"${i.name}","${i.category}","${i.stock}","${i.expiryDate}"\n`;
+            });
+            this.downloadCSV(csv, 'Expired_Products_Report.csv');
+          },
+
           downloadCSV(csvContent, fileName) {
             const BOM = "\ufeff";
             const blob = new Blob([BOM + csvContent], {
@@ -306,7 +331,7 @@
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
         <div class="px-6 py-8">
           <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
-            <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
+            <img src="/src/img/logo.png.jpg" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
           </a>
         </div>
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
@@ -525,7 +550,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             <button @click="exportSalesReport()" class="flex flex-col gap-4 p-8 bg-white border border-slate-100 rounded-4xl hover:border-blue-600/30 hover:shadow-xl hover:shadow-blue-500/5 transition-all group cursor-pointer relative overflow-hidden text-left">
                <div class="absolute right-0 top-0 w-24 h-24 bg-blue-500/5 rounded-full -mr-8 -mt-8 group-hover:bg-blue-500/10 transition-colors"></div>
                <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
@@ -560,6 +585,15 @@
                </div>
                <h5 class="text-sm font-black text-slate-800 group-hover:text-amber-600 transition-colors uppercase tracking-tight">Dead Stock</h5>
                <p class="text-[10px] font-bold text-slate-400">Audit slow items</p>
+            </button>
+
+            <button @click="exportExpiredReport()" class="flex flex-col gap-4 p-8 bg-white border border-slate-100 rounded-4xl hover:border-rose-600/30 hover:shadow-xl hover:shadow-rose-500/5 transition-all group cursor-pointer relative overflow-hidden text-left">
+               <div class="absolute right-0 top-0 w-24 h-24 bg-rose-500/5 rounded-full -mr-8 -mt-8 group-hover:bg-rose-500/10 transition-colors"></div>
+               <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-all shadow-sm">
+                 <i data-lucide="calendar-x" class="w-7 h-7"></i>
+               </div>
+               <h5 class="text-sm font-black text-slate-800 group-hover:text-rose-600 transition-colors uppercase tracking-tight">Expired Items</h5>
+               <p class="text-[10px] font-bold text-slate-400">Inventory audit</p>
             </button>
           </div>
         </div>

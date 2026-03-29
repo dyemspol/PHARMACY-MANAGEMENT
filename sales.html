@@ -2,9 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/src/img/riteMed.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sales History | DavaoDeOro</title>
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1e40af" />
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/pwa-512x512.png">
+    <title>Sales History | RiGHT MEDS</title>
     <link href="/src/style.css" rel="stylesheet" />
     
     <!-- Fonts -->
@@ -64,6 +70,12 @@
         return this.todaySales.reduce((sum, s) => {
             const v = parseFloat((s.discount || '0').replace('₱','').replace(/,/g,'')) || 0;
             return sum + v;
+        }, 0);
+    },
+    get todayRefunded() {
+        return this.todaySales.reduce((sum, s) => {
+            const refund = (s.cart || []).reduce((isum, item) => isum + ((item.quantityRefunded || 0) * item.price), 0);
+            return sum + refund;
         }, 0);
     },
 
@@ -287,7 +299,7 @@
       <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-4xl shadow-2xl flex flex-col overflow-hidden">
         <div class="px-6 py-8">
           <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
-            <img src="/src/img/riteMed.png" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
+            <img src="/src/img/logo.png.jpg" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
           </a>
         </div>
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
@@ -348,18 +360,22 @@
               <p class="text-sm font-black" x-text="new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})"></p>
             </div>
           </div>
-          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <div class="bg-white/10 rounded-2xl p-4 text-center">
               <p class="text-[9px] font-black uppercase tracking-widest text-blue-200 mb-1">Transactions</p>
               <p class="text-2xl font-black" x-text="todayTxCount"></p>
+            </div>
+            <div class="bg-white/10 rounded-2xl p-4 text-center">
+              <p class="text-[9px] font-black uppercase tracking-widest text-blue-200 mb-1">Gross Sales</p>
+              <p class="text-2xl font-black" x-text="'₱' + todayGross.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
             </div>
             <div class="bg-white/10 rounded-2xl p-4 text-center">
               <p class="text-[9px] font-black uppercase tracking-widest text-rose-200 mb-1">Tot. Discount</p>
               <p class="text-2xl font-black text-rose-100" x-text="'₱' + todayDiscount.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
             </div>
             <div class="bg-white/10 rounded-2xl p-4 text-center">
-              <p class="text-[9px] font-black uppercase tracking-widest text-blue-200 mb-1">Gross Sales</p>
-              <p class="text-2xl font-black" x-text="'₱' + todayGross.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+              <p class="text-[9px] font-black uppercase tracking-widest text-rose-200 mb-1">Tot. Refunded</p>
+              <p class="text-2xl font-black text-rose-100" x-text="'₱' + todayRefunded.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
             </div>
             <div class="bg-white/10 rounded-2xl p-4 text-center">
               <p class="text-[9px] font-black uppercase tracking-widest text-blue-200 mb-1">Net Sales</p>
