@@ -509,7 +509,7 @@
           </div>
 
           <!-- Active Filters -->
-          <div class="flex gap-2 pb-2 mt-4 hide-scrollbar">
+          <div class="flex gap-2 pb-2 mt-4 overflow-x-auto hide-scrollbar">
             <template x-for="cat in categories">
               <button @click="selectedCategory = cat" :class="selectedCategory === cat ? 'bg-blue-900 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'" class="px-5 py-2.5 rounded-2xl text-sm font-bold transition-all whitespace-nowrap" x-text="cat"></button>
             </template>
