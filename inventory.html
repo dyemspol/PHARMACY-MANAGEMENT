@@ -43,9 +43,9 @@
       editModalOpen: false,
       deleteConfirmOpen: false,
       searchTerm: '',
-      newMedicine: { name: '', brandName: '', strength: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '' },
-      newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '' },
-      editingMedicine: { name: '', brandName: '', strength: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '' },
+      newMedicine: { name: '', brandName: '', strength: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '', lowStockThreshold: '50' },
+      newGeneralItem: { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '', lowStockThreshold: '50' },
+      editingMedicine: { name: '', brandName: '', strength: '', barcode: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', location: '', lowStockThreshold: '50' },
       editingKind: 'Medicine',
       editingId: null,
       itemToDelete: null,
@@ -58,6 +58,13 @@
       editingCategoryName: '',
       isLoading: true,
       currentUser: window.auth.getCurrentUser(),
+      
+      // Pagination & Performance
+      itemsPerPage: 15,
+      currentPageMed: 1,
+      currentPageGen: 1,
+      debouncedSearchTerm: '',
+      searchTimeout: null,
       
       async init() {
         console.log('Inventory Alpine init: Waiting for window.db...');
@@ -92,9 +99,23 @@
             console.log('Fetched medicines:', this.medicines);
             this.$nextTick(() => lucide.createIcons());
 
-            // Re-initialize icons when filtering or searching
-            this.$watch('searchTerm', () => this.$nextTick(() => lucide.createIcons()));
-            this.$watch('selectedCategory', () => this.$nextTick(() => lucide.createIcons()));
+            // Re-initialize icons when filtering or searching (Debounced)
+            this.$watch('debouncedSearchTerm', () => {
+              this.currentPageMed = 1;
+              this.currentPageGen = 1;
+              this.$nextTick(() => lucide.createIcons());
+            });
+            this.$watch('selectedCategory', () => {
+              this.currentPageMed = 1;
+              this.currentPageGen = 1;
+              this.$nextTick(() => lucide.createIcons());
+            });
+            this.$watch('searchTerm', (val) => {
+              clearTimeout(this.searchTimeout);
+              this.searchTimeout = setTimeout(() => {
+                this.debouncedSearchTerm = val;
+              }, 400);
+            });
           }
         }, 100);
       },
@@ -170,34 +191,41 @@
         const status = this.getExpiryStatus(date);
         return `${this.getExpiryBg(status)} ${this.getExpiryColor(status)}`;
       },
-      getStockClass(stock) {
-        const val = window.db.parseStock(stock);
-        if (val <= 0) return 'bg-rose-50 text-rose-600 border-rose-100/50';
-        if (val <= 20) return 'bg-orange-50 text-orange-600 border-orange-100/50';
-        if (val <= 50) return 'bg-amber-50 text-amber-600 border-amber-100/50';
-        return 'bg-emerald-50 text-emerald-600 border-emerald-100/50';
-      },
       get filteredMedicines() {
         return this.medicines.filter(m => 
-          m.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-          (m.brandName && m.brandName.toLowerCase().includes(this.searchTerm.toLowerCase()))
+          m.name.toLowerCase().includes(this.debouncedSearchTerm.toLowerCase()) ||
+          (m.brandName && m.brandName.toLowerCase().includes(this.debouncedSearchTerm.toLowerCase()))
         ).sort((a, b) => a.name.localeCompare(b.name));
       },
       get filteredMedicinesOnly() {
         return this.medicines.filter(m => 
           m.kind === 'Medicine' && 
           (this.selectedCategory === 'All' || m.category === this.selectedCategory) &&
-          (m.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-           (m.brandName && m.brandName.toLowerCase().includes(this.searchTerm.toLowerCase())))
+          (m.name.toLowerCase().includes(this.debouncedSearchTerm.toLowerCase()) ||
+           (m.brandName && m.brandName.toLowerCase().includes(this.debouncedSearchTerm.toLowerCase())))
         ).sort((a, b) => a.name.localeCompare(b.name));
+      },
+      get paginatedMedicines() {
+        const start = (this.currentPageMed - 1) * this.itemsPerPage;
+        return this.filteredMedicinesOnly.slice(start, start + this.itemsPerPage);
+      },
+      get totalMedPages() {
+        return Math.ceil(this.filteredMedicinesOnly.length / this.itemsPerPage) || 1;
       },
       get filteredGeneralItemsOnly() {
         return this.medicines.filter(m => 
           (m.kind === 'General' || !m.kind) && 
           (this.selectedCategory === 'All' || m.category === this.selectedCategory) &&
-          (m.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-           (m.brandName && m.brandName.toLowerCase().includes(this.searchTerm.toLowerCase())))
+          (m.name.toLowerCase().includes(this.debouncedSearchTerm.toLowerCase()) ||
+           (m.brandName && m.brandName.toLowerCase().includes(this.debouncedSearchTerm.toLowerCase())))
         ).sort((a, b) => a.name.localeCompare(b.name));
+      },
+      get paginatedGeneralItems() {
+        const start = (this.currentPageGen - 1) * this.itemsPerPage;
+        return this.filteredGeneralItemsOnly.slice(start, start + this.itemsPerPage);
+      },
+      get totalGenPages() {
+        return Math.ceil(this.filteredGeneralItemsOnly.length / this.itemsPerPage) || 1;
       },
       async addMedicine() {
         if (!this.newMedicine.name || !this.newMedicine.stock || !this.newMedicine.sellingPrice) return;
@@ -219,6 +247,7 @@
           expiryStatus: 'Good',
           expiryDate: this.newMedicine.expiryDate || 'N/A',
           location: this.newMedicine.location || 'N/A',
+          lowStockThreshold: this.newMedicine.lowStockThreshold || '50',
           color: randomColor
         };
         
@@ -227,7 +256,7 @@
           itemToSave.id = newId;
           this.medicines.push(itemToSave);
           this.medicines.sort((a, b) => a.name.localeCompare(b.name));
-          this.newMedicine = { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
+          this.newMedicine = { name: '', category: 'Pain Relief', type: 'Generic', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', lowStockThreshold: '50' };
           this.addModalOpen = false;
           this.$nextTick(() => lucide.createIcons());
         } catch (err) {
@@ -255,6 +284,7 @@
           expiryStatus: 'Good',
           expiryDate: this.newGeneralItem.expiryDate || 'N/A',
           location: this.newGeneralItem.location || 'N/A',
+          lowStockThreshold: this.newGeneralItem.lowStockThreshold || '50',
           color: randomColor
         };
 
@@ -263,7 +293,7 @@
           itemToSave.id = newId;
           this.medicines.push(itemToSave);
           this.medicines.sort((a, b) => a.name.localeCompare(b.name));
-          this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '' };
+          this.newGeneralItem = { name: '', barcode: '', category: 'Medical Supplies', type: 'Medical Supply', stock: '', costPrice: '', sellingPrice: '', supplier: '', batch: '', expiryDate: '', lowStockThreshold: '50' };
           this.addGeneralModalOpen = false;
           this.$nextTick(() => lucide.createIcons());
         } catch (err) {
@@ -304,7 +334,8 @@
           supplier: medicine.supplier || '',
           batch: medicine.batch || '',
           expiryDate: medicine.expiryDate === 'N/A' ? '' : medicine.expiryDate,
-          location: medicine.location || ''
+          location: medicine.location || '',
+          lowStockThreshold: medicine.lowStockThreshold || '50'
         };
         this.editModalOpen = true;
       },
@@ -324,7 +355,8 @@
             supplier: this.editingMedicine.supplier || 'N/A',
             batch: this.editingMedicine.batch || 'N/A',
             expiryDate: this.editingMedicine.expiryDate || 'N/A',
-            location: this.editingMedicine.location || 'N/A'
+            location: this.editingMedicine.location || 'N/A',
+            lowStockThreshold: this.editingMedicine.lowStockThreshold || '50'
           };
           
           if (this.editingKind === 'Medicine') {
@@ -590,7 +622,7 @@
                               </td>
                           </tr>
                         </template>
-                        <template x-for="medicine in filteredMedicinesOnly">
+                        <template x-for="medicine in paginatedMedicines">
                           <tr class="hover:bg-slate-50/40 transition-colors group">
                             <td class="px-4 md:px-8 py-4 md:py-6">
                               <div class="flex items-center gap-3 md:gap-4">
@@ -627,12 +659,24 @@
                             </td>
                             <td class="px-4 md:px-8 py-4 md:py-6 text-center">
                               <div class="flex items-center justify-center gap-2">
-                                <template x-if="window.db.parseStock(medicine.stock) <= 50">
-                                  <i data-lucide="alert-triangle" :class="window.db.parseStock(medicine.stock) <= 0 ? 'text-rose-500' : (window.db.parseStock(medicine.stock) <= 20 ? 'text-orange-500' : 'text-amber-500')" class="w-4 h-4 animate-pulse"></i>
+                                <template x-if="window.db.isLowStock(medicine)">
+                                  <i data-lucide="alert-triangle" 
+                                     :class="{
+                                       'text-rose-500': window.db.getStockSeverity(medicine) === 'critical-empty',
+                                       'text-orange-500': window.db.getStockSeverity(medicine) === 'critical-low',
+                                       'text-amber-500': window.db.getStockSeverity(medicine) === 'low'
+                                     }" 
+                                     class="w-4 h-4 animate-pulse"></i>
                                 </template>
                                 <span
-                                  :class="getStockClass(medicine.stock)"
-                                  class="text-xs md:text-sm font-black px-2 md:px-3 py-1 rounded-lg" x-text="medicine.stock"></span>
+                                  class="text-xs md:text-sm font-black px-2 md:px-3 py-1 rounded-lg border"
+                                  :class="{
+                                    'bg-rose-50 text-rose-600 border-rose-100/50': window.db.getStockSeverity(medicine) === 'critical-empty',
+                                    'bg-orange-50 text-orange-600 border-orange-100/50': window.db.getStockSeverity(medicine) === 'critical-low',
+                                    'bg-amber-50 text-amber-600 border-amber-100/50': window.db.getStockSeverity(medicine) === 'low',
+                                    'bg-emerald-50 text-emerald-600 border-emerald-100/50': window.db.getStockSeverity(medicine) === 'normal'
+                                  }"
+                                  x-text="medicine.stock"></span>
                               </div>
                             </td>
                             <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden sm:table-cell">
@@ -663,8 +707,33 @@
                       </tbody>
                     </table>
                   </div>
-                  <div class="p-8 bg-slate-50/30 border-t border-slate-100/50 flex items-center justify-between">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"></p>
+                    <div class="px-8 flex items-center justify-between gap-4">
+                      <div class="flex items-center gap-2">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Page <span class="text-slate-800" x-text="currentPageMed"></span> of <span class="text-slate-800" x-text="totalMedPages"></span>
+                        </p>
+                        <div class="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
+                          <div class="h-full bg-indigo-500 transition-all duration-500" :style="`width: ${(currentPageMed/totalMedPages)*100}%`"></div >
+                        </div>
+                      </div>
+                      
+                      <div class="flex items-center gap-2">
+                        <button 
+                          @click="currentPageMed--; $nextTick(() => lucide.createIcons())" 
+                          :disabled="currentPageMed <= 1"
+                          class="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                        >
+                          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                        </button>
+                        <button 
+                          @click="currentPageMed++; $nextTick(() => lucide.createIcons())" 
+                          :disabled="currentPageMed >= totalMedPages"
+                          class="w-10 h-10 flex items-center justify-center bg-indigo-600 border border-indigo-500 rounded-xl text-white hover:bg-indigo-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-indigo-500/20"
+                        >
+                          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -709,7 +778,7 @@
                               </td>
                           </tr>
                         </template>
-                        <template x-for="medicine in filteredGeneralItemsOnly">
+                        <template x-for="medicine in paginatedGeneralItems">
                           <tr class="hover:bg-slate-50/40 transition-colors group">
                             <td class="px-4 md:px-8 py-4 md:py-6">
                               <div class="flex items-center gap-3 md:gap-4">
@@ -737,12 +806,24 @@
                             </td>
                             <td class="px-4 md:px-8 py-4 md:py-6 text-center">
                               <div class="flex items-center justify-center gap-2">
-                                <template x-if="window.db.parseStock(medicine.stock) <= 50">
-                                  <i data-lucide="alert-triangle" :class="window.db.parseStock(medicine.stock) <= 0 ? 'text-rose-500' : (window.db.parseStock(medicine.stock) <= 20 ? 'text-orange-500' : 'text-amber-500')" class="w-4 h-4 animate-pulse"></i>
+                                <template x-if="window.db.isLowStock(medicine)">
+                                  <i data-lucide="alert-triangle" 
+                                     :class="{
+                                       'text-rose-500': window.db.getStockSeverity(medicine) === 'critical-empty',
+                                       'text-orange-500': window.db.getStockSeverity(medicine) === 'critical-low',
+                                       'text-amber-500': window.db.getStockSeverity(medicine) === 'low'
+                                     }" 
+                                     class="w-4 h-4 animate-pulse"></i>
                                 </template>
                                 <span
-                                  :class="getStockClass(medicine.stock)"
-                                  class="text-xs md:text-sm font-black px-2 md:px-3 py-1 rounded-lg" x-text="medicine.stock"></span>
+                                  class="text-xs md:text-sm font-black px-2 md:px-3 py-1 rounded-lg border"
+                                  :class="{
+                                    'bg-rose-50 text-rose-600 border-rose-100/50': window.db.getStockSeverity(medicine) === 'critical-empty',
+                                    'bg-orange-50 text-orange-600 border-orange-100/50': window.db.getStockSeverity(medicine) === 'critical-low',
+                                    'bg-amber-50 text-amber-600 border-amber-100/50': window.db.getStockSeverity(medicine) === 'low',
+                                    'bg-emerald-50 text-emerald-600 border-emerald-100/50': window.db.getStockSeverity(medicine) === 'normal'
+                                  }"
+                                  x-text="medicine.stock"></span>
                               </div>
                             </td>
                             <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden sm:table-cell">
@@ -773,8 +854,33 @@
                       </tbody>
                     </table>
                   </div>
-                  <div class="p-8 bg-slate-50/30 border-t border-slate-100/50 flex items-center justify-between">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest"></p>
+                    <div class="px-8 flex items-center justify-between gap-4">
+                      <div class="flex items-center gap-2">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Page <span class="text-slate-800" x-text="currentPageGen"></span> of <span class="text-slate-800" x-text="totalGenPages"></span>
+                        </p>
+                        <div class="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
+                          <div class="h-full bg-emerald-500 transition-all duration-500" :style="`width: ${(currentPageGen/totalGenPages)*100}%`"></div >
+                        </div>
+                      </div>
+                      
+                      <div class="flex items-center gap-2">
+                        <button 
+                          @click="currentPageGen--; $nextTick(() => lucide.createIcons())" 
+                          :disabled="currentPageGen <= 1"
+                          class="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                        >
+                          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                        </button>
+                        <button 
+                          @click="currentPageGen++; $nextTick(() => lucide.createIcons())" 
+                          :disabled="currentPageGen >= totalGenPages"
+                          class="w-10 h-10 flex items-center justify-center bg-emerald-600 border border-emerald-500 rounded-xl text-white hover:bg-emerald-700 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-emerald-500/20"
+                        >
+                          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -800,7 +906,7 @@
                     </div>
 
                     <form @submit.prevent="addMedicine" class="space-y-6">
-                      <!-- Medicine form contents -->
+                      <!-- Medi                      <!-- Generic Name and Strength -->
                       <div class="grid grid-cols-3 gap-6">
                         <div class="col-span-2 space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Generic Name</label>
@@ -817,6 +923,7 @@
                         </div>
                       </div>
 
+                      <!-- Brand and Category -->
                       <div class="grid grid-cols-2 gap-6">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Brand Name (Optional)</label>
@@ -837,7 +944,8 @@
                         </div>
                       </div>
 
-                      <div class="grid grid-cols-2 gap-6">
+                      <!-- Type, Batch, and Low Stock Alert -->
+                      <div class="grid grid-cols-3 gap-6">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine Type</label>
                           <div class="relative">
@@ -854,8 +962,14 @@
                           <input x-model="newMedicine.batch" type="text" placeholder="e.g. B-102"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
+                        <div class="space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Low Stock Alert</label>
+                          <input x-model="newMedicine.lowStockThreshold" type="number" placeholder="50"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
                       </div>
 
+                      <!-- Expiry, Supplier, Location -->
                       <div class="grid grid-cols-3 gap-6">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
@@ -874,6 +988,7 @@
                         </div>
                       </div>
 
+                      <!-- Stock, Cost, Selling -->
                       <div class="grid grid-cols-3 gap-6">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Stock Units</label>
@@ -892,7 +1007,7 @@
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold"
                             required>
                         </div>
-                      </div>
+                      </div>                      </div>
 
                       <div class="pt-6">
                         <button type="submit"
@@ -953,7 +1068,7 @@
                           </select>
                         </div>
                         <div class="space-y-2">
-                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch #</label>
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch Number</label>
                           <input x-model="newGeneralItem.batch" type="text" placeholder="e.g. M-551"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
@@ -972,8 +1087,21 @@
                           </div>
                         </div>
                         <div class="space-y-2">
+                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Low Stock Alert</label>
+                           <input x-model="newGeneralItem.lowStockThreshold" type="number" placeholder="50"
+                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                        <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>
                           <input x-model="newGeneralItem.expiryDate" type="date"
+                            class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                      </div>
+
+                      <div class="grid grid-cols-3 gap-6">
+                        <div class="col-span-2 space-y-2">
+                          <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Supplier</label>
+                          <input x-model="newGeneralItem.supplier" type="text" placeholder="e.g. PharmaCorp"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
@@ -1081,7 +1209,7 @@
                         </div>
                       </div>
 
-                      <div class="grid grid-cols-2 gap-6" x-show="editingKind === 'Medicine'">
+                      <div class="grid grid-cols-3 gap-6" x-show="editingKind === 'Medicine'">
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Medicine Type</label>
                           <div class="relative">
@@ -1097,6 +1225,11 @@
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Batch Number</label>
                           <input x-model="editingMedicine.batch" type="text"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
+                        </div>
+                        <div class="space-y-2">
+                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Low Stock Alert</label>
+                           <input x-model="editingMedicine.lowStockThreshold" type="number"
+                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                       </div>
 
@@ -1118,7 +1251,7 @@
                         </div>
                       </div>
 
-                      <div class="grid grid-cols-2 gap-6" x-show="editingKind === 'General'">
+                      <div class="grid grid-cols-3 gap-6" x-show="editingKind === 'General'">
                         <div class="space-y-2">
                            <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Type</label>
                            <div class="relative">
@@ -1129,6 +1262,11 @@
                               </select>
                               <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
                            </div>
+                        </div>
+                        <div class="space-y-2">
+                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Low Stock Alert</label>
+                           <input x-model="editingMedicine.lowStockThreshold" type="number"
+                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold">
                         </div>
                         <div class="space-y-2">
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Expiry Date</label>

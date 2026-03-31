@@ -1,4 +1,4 @@
-import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, getDocs, deleteDoc } from "firebase/firestore";
 import { db } from "../firebase.js";
 
 const SALES_COLLECTION = "salesHistory";
@@ -55,6 +55,21 @@ export const updateSaleItemRefund = async (saleId, items, overallStatus) => {
     return true;
   } catch (error) {
     console.error("Error updating partial refund: ", error);
+    throw error;
+  }
+};
+// Delete all records from salesHistory (Reset Sales)
+export const clearSalesHistory = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, SALES_COLLECTION));
+    const deletePromises = [];
+    querySnapshot.forEach((document) => {
+      deletePromises.push(deleteDoc(doc(db, SALES_COLLECTION, document.id)));
+    });
+    await Promise.all(deletePromises);
+    return true;
+  } catch (error) {
+    console.error("Error clearing sales history: ", error);
     throw error;
   }
 };

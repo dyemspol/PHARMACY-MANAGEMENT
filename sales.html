@@ -24,6 +24,10 @@
     
     <script type="module" src="/src/auth.js"></script>
     <script type="module" src="/src/db.js"></script>
+    <script type="module">
+      import { printerService } from './src/services/printerService.js';
+      window.printerService = printerService;
+    </script>
     
     <style>
       [x-cloak] { display: none !important; }
@@ -44,6 +48,11 @@
     isLoading: true,
     currentUser: window.auth.getCurrentUser(),
     todayStr: new Date().toLocaleDateString('en-CA'),
+    
+    // Shift Report State
+    shiftReportModal: false,
+    startingCash: '0',
+    actualCash: '0',
 
     get isEmployee() { return this.currentUser?.role === 'employee'; },
 
@@ -222,6 +231,43 @@
             this.selectedSale.status = overallStatus;
             alert(`Successfully refunded ${refundQty} units`);
         } catch (error) { alert('Error: ' + error.message); } finally { this.isLoading = false; }
+    },
+
+    async printShiftReport() {
+        if (!window.printerService || !window.printerService.isConnected()) {
+            alert('Please connect your thermal printer first in Printer Setup.');
+            return;
+        }
+
+        try {
+            this.isLoading = true;
+            const reportData = {
+                posName: this.currentUser?.name || this.currentUser?.username || 'Cashier',
+                startTime: '08:00 AM', // Default or first sale time
+                startingCash: parseFloat(this.startingCash) || 0,
+                cashPayments: this.todayNet,
+                cashRefunds: this.todayRefunded,
+                expectedCash: (parseFloat(this.startingCash) || 0) + this.todayNet - this.todayRefunded,
+                actualCash: parseFloat(this.actualCash) || 0,
+                grossSales: this.todayGross,
+                refunds: this.todayRefunded,
+                discounts: this.todayDiscount,
+                netSales: this.todayNet - this.todayRefunded,
+                shiftNumber: Math.floor(Math.random() * 900) + 100
+            };
+
+            const success = await window.printerService.printShiftReport(reportData);
+            if (success) {
+                this.shiftReportModal = false;
+                alert('Shift report printed successfully!');
+            } else {
+                alert('Printing failed. Please check your printer connection.');
+            }
+        } catch (error) {
+            alert('Error printing: ' + error.message);
+        } finally {
+            this.isLoading = false;
+        }
     }
   }">
     
@@ -291,6 +337,50 @@
       </div>
     </div>
 
+    <!-- Shift Report Modal -->
+    <div x-show="shiftReportModal" x-cloak class="fixed inset-0 z-70 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+      <div class="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-bento" @click.away="shiftReportModal = false">
+        <div class="p-8 border-b border-slate-100 flex items-center justify-between">
+          <h2 class="text-2xl font-black text-slate-800 tracking-tight">Shift End Report</h2>
+          <button @click="shiftReportModal = false" class="text-slate-400 hover:text-slate-600 transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
+        </div>
+        <div class="p-8 space-y-6">
+          <div class="space-y-4">
+               <div>
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2 block">Starting Cash (Drawer)</label>
+                <div class="relative">
+                    <span class="absolute left-6 top-1/2 -translate-y-1/2 text-lg font-black text-slate-300">₱</span>
+                    <input type="number" x-model="startingCash" class="w-full pl-12 pr-6 py-4 bg-slate-50 border-2 border-transparent focus:border-blue-900 focus:bg-white rounded-2xl text-xl font-black text-slate-800 transition-all outline-none">
+                </div>
+               </div>
+               <div>
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2 block">Actual Cash Remaining</label>
+                <div class="relative">
+                    <span class="absolute left-6 top-1/2 -translate-y-1/2 text-lg font-black text-slate-300">₱</span>
+                    <input type="number" x-model="actualCash" class="w-full pl-12 pr-6 py-4 bg-slate-50 border-2 border-transparent focus:border-blue-900 focus:bg-white rounded-2xl text-xl font-black text-slate-800 transition-all outline-none">
+                </div>
+                <p class="text-[9px] text-slate-400 font-bold mt-2 ml-4">System expects: <span class="text-blue-900" x-text="'₱' + ((parseFloat(startingCash)||0) + todayNet - todayRefunded).toLocaleString()"></span></p>
+               </div>
+          </div>
+          
+          <div class="p-6 bg-blue-50 rounded-3xl border border-blue-100 space-y-3">
+             <div class="flex justify-between items-center text-[11px] font-bold text-blue-900 uppercase">
+                <span>Today's Net Sales</span>
+                <span x-text="'₱' + todayNet.toLocaleString()"></span>
+             </div>
+             <div class="flex justify-between items-center text-[11px] font-bold text-rose-500 uppercase">
+                <span>Today's Refunds</span>
+                <span x-text="'₱' + todayRefunded.toLocaleString()"></span>
+             </div>
+          </div>
+        </div>
+        <div class="p-8 pt-0 flex gap-3">
+          <button @click="shiftReportModal = false" class="flex-1 py-4 bg-slate-50 text-slate-500 font-bold rounded-2xl">Cancel</button>
+          <button @click="printShiftReport()" class="flex-[2] py-4 bg-blue-900 text-white font-black rounded-2xl shadow-xl shadow-blue-800/20 active:scale-95 transition-all">Print Summary</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Mobile Sidebar Backdrop -->
     <div x-show="sidebarOpen" @click="sidebarOpen = false" x-cloak class="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden transition-opacity"></div>
 
@@ -355,10 +445,14 @@
               <p class="text-[10px] font-black uppercase tracking-widest text-blue-200">Logged in as</p>
               <p class="text-sm font-extrabold" x-text="currentUser?.name || currentUser?.username"></p>
             </div>
-            <div class="ml-auto text-right">
               <p class="text-[10px] font-bold text-blue-200 uppercase tracking-widest">Today</p>
               <p class="text-sm font-black" x-text="new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})"></p>
             </div>
+            <button @click="shiftReportModal = true; startingCash = '0'; actualCash = (todayNet - todayRefunded).toFixed(2); $nextTick(() => lucide.createIcons());" 
+                    class="ml-4 flex items-center gap-2 px-4 py-2 bg-white text-blue-900 rounded-xl font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg">
+                <i data-lucide="printer" class="w-3 h-3"></i>
+                Print Shift Report
+            </button>
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <div class="bg-white/10 rounded-2xl p-4 text-center">

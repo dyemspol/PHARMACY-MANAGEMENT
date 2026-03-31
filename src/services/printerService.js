@@ -220,6 +220,80 @@ class PrinterService {
     return await this.print(new Uint8Array(buffer));
   }
 
+  async printShiftReport(reportData) {
+    let buffer = [];
+    const add = (arr) => buffer.push(...arr);
+    const text = (str) => add(this.encoder.encode(str.replace(/₱/g, 'P')));
+
+    add(this.commands.init);
+    add(this.commands.alignCenter);
+    add(this.commands.boldOn);
+    text('Shift report\n\n');
+    add(this.commands.boldOff);
+    
+    add(this.commands.alignLeft);
+    text(`Shift number: ${reportData.shiftNumber || Math.floor(Math.random() * 900) + 100}\n`);
+    text(`Store: RiGHT MEDS Pharmacy...\n`);
+    text(`POS: ${reportData.posName.toUpperCase()}\n`);
+    text('--------------------------------\n');
+    
+    text(`Shift opened: \n`);
+    text(`Today         ${reportData.openedAt || '08:00'}\n\n`);
+    text(`Shift closed: \n`);
+    text(`Today         ${new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}\n`);
+    text('--------------------------------\n\n');
+
+    add(this.commands.alignCenter);
+    add(this.commands.boldOn);
+    text('Cash drawer\n\n');
+    add(this.commands.boldOff);
+    add(this.commands.alignLeft);
+
+    const formatLine = (label, value) => {
+      const valStr = 'P' + parseFloat(value).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+      const spaces = Math.max(1, 32 - label.length - valStr.length);
+      return `${label}${(' ').repeat(spaces)}${valStr}\n`;
+    };
+
+    text(formatLine('Starting cash', reportData.startingCash));
+    text(formatLine('Cash payments', reportData.cashPayments));
+    text(formatLine('Cash refunds', reportData.cashRefunds));
+    text(formatLine('Paid in', 0));
+    text(formatLine('Paid out', 0));
+    text(formatLine('Expected cash', reportData.expectedCash));
+    text(formatLine('Actual cash amount', reportData.actualCash));
+    text(formatLine('Difference', reportData.actualCash - reportData.expectedCash));
+    text('\n');
+
+    text('--------------------------------\n\n');
+    add(this.commands.alignCenter);
+    add(this.commands.boldOn);
+    text('Sales summary\n\n');
+    add(this.commands.boldOff);
+    add(this.commands.alignLeft);
+
+    text(formatLine('Gross sales', reportData.grossSales));
+    text(formatLine('Refunds', reportData.refunds));
+    text(formatLine('Discounts', reportData.discounts));
+    text(formatLine('Net sales', reportData.netSales));
+    text(formatLine('Cash', reportData.cashPayments));
+    text(formatLine('Taxes', 0));
+    text('\n');
+
+    text('--------------------------------\n');
+    add(this.commands.alignCenter);
+    text(`${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n\n`);
+    
+    add(this.commands.lineFeed);
+    add(this.commands.lineFeed);
+    add(this.commands.lineFeed);
+    add(this.commands.lineFeed);
+    add(this.commands.partialCut);
+    add(this.commands.feedAndCut);
+
+    return await this.print(new Uint8Array(buffer));
+  }
+
   async printTestPage() {
     let buffer = [];
     const add = (arr) => buffer.push(...arr);

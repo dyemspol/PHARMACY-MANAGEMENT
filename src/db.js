@@ -61,6 +61,23 @@ export const parseStock = (stock) => {
   return parseInt(String(stock).replace(/ units/g, '').replace(/,/g, '')) || 0;
 };
 
+// Centralized Low Stock Check
+export const isLowStock = (item) => {
+  const stock = parseStock(item.stock);
+  const threshold = parseInt(item.lowStockThreshold) || 50;
+  return stock <= threshold;
+};
+
+// Get Stock Severity for UI coloring
+export const getStockSeverity = (item) => {
+  const stock = parseStock(item.stock);
+  const threshold = parseInt(item.lowStockThreshold) || 50;
+  if (stock <= 0) return 'critical-empty';
+  if (stock <= (threshold * 0.4)) return 'critical-low';
+  if (stock <= threshold) return 'low';
+  return 'normal';
+};
+
 // Utility: Parse currency string to number
 export const parseCurrency = (value) => {
   if (typeof value === 'number') return value;

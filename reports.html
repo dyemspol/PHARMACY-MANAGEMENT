@@ -320,6 +320,24 @@
             link.click();
             document.body.removeChild(link);
           },
+
+          async resetAllSalesData() {
+            if (!confirm('CRITICAL ACTION: This will permanently delete ALL sales history and transaction records from the database. This cannot be undone. Are you sure you want to proceed?')) return;
+            
+            try {
+              this.isLoading = true;
+              await window.salesDb.clearSalesHistory();
+              this.allSalesData = [];
+              this.updateRange();
+              alert('Sales history has been successfully reset.');
+              window.location.reload(); 
+            } catch (error) {
+              console.error('Error resetting sales:', error);
+              alert('Failed to reset sales: ' + error.message);
+            } finally {
+              this.isLoading = false;
+            }
+          },
         }));
       });
     </script>
@@ -550,7 +568,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
             <button @click="exportSalesReport()" class="flex flex-col gap-4 p-8 bg-white border border-slate-100 rounded-4xl hover:border-blue-600/30 hover:shadow-xl hover:shadow-blue-500/5 transition-all group cursor-pointer relative overflow-hidden text-left">
                <div class="absolute right-0 top-0 w-24 h-24 bg-blue-500/5 rounded-full -mr-8 -mt-8 group-hover:bg-blue-500/10 transition-colors"></div>
                <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
@@ -594,6 +612,15 @@
                </div>
                <h5 class="text-sm font-black text-slate-800 group-hover:text-rose-600 transition-colors uppercase tracking-tight">Expired Items</h5>
                <p class="text-[10px] font-bold text-slate-400">Inventory audit</p>
+            </button>
+
+            <button @click="resetAllSalesData()" class="flex flex-col gap-4 p-8 bg-white border border-slate-100 rounded-4xl hover:border-rose-600/50 hover:shadow-xl hover:shadow-rose-500/10 transition-all group cursor-pointer relative overflow-hidden text-left border-rose-50 shadow-sm shadow-rose-500/5">
+               <div class="absolute right-0 top-0 w-24 h-24 bg-rose-500/10 rounded-full -mr-8 -mt-8 group-hover:bg-rose-500/20 transition-colors"></div>
+               <div class="w-14 h-14 bg-rose-100/50 rounded-2xl flex items-center justify-center text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition-all shadow-sm">
+                 <i data-lucide="trash-2" class="w-7 h-7"></i>
+               </div>
+               <h5 class="text-sm font-black text-rose-800 group-hover:text-rose-600 transition-colors uppercase tracking-tight">Reset Sales History</h5>
+               <p class="text-[10px] font-bold text-rose-400/80 uppercase">System Wipe</p>
             </button>
           </div>
         </div>

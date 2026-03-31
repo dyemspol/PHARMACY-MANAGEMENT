@@ -155,7 +155,7 @@ function dashboardApp() {
         if (isNaN(exp)) return false;
         return exp <= sixMonths && exp >= today;
       });
-      this.lowStockItems = this.inventory.filter((item) => window.db.parseStock(item.stock) <= 50);
+      this.lowStockItems = this.inventory.filter((item) => window.db.isLowStock(item));
       this.stats.expiringCount = this.criticalItems.length;
       this.stats.lowStockCount = this.lowStockItems.length;
     },
