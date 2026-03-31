@@ -50,7 +50,7 @@
       editingId: null,
       itemToDelete: null,
       medicines: [],
-      categories: ['Pain Relief', 'Antibiotics', 'Vitamins', 'Cardiovascular', 'First Aid', 'Medical Supplies'],
+      categories: [], // loaded from Firestore
       categoryModalOpen: false,
       selectedCategory: 'All',
       newCategoryName: '',
@@ -78,13 +78,17 @@
         const waitForDb = setInterval(async () => {
           if (window.db) {
             clearInterval(waitForDb);
-            console.log('Database ready! Fetching inventory...');
+            console.log('Database ready! Fetching inventory & categories...');
+
+            // Load categories from Firestore
+            const cats = await window.db.getCategories();
+            this.categories = cats;
+
             const raw = await window.db.fetchInventory();
             this.medicines = raw.map(m => {
               let cleanName = m.name || '';
               const str = (m.strength || '').trim();
               if (str) {
-                // Remove strength from the end of the name if it matches exactly
                 const regex = new RegExp('\\s+' + str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
                 cleanName = cleanName.replace(regex, '');
               }
@@ -120,43 +124,49 @@
         }, 100);
       },
 
-      addCategory() {
+      async addCategory() {
         if (!this.newCategoryName.trim()) return;
-        if (!this.categories.includes(this.newCategoryName.trim())) {
-          this.categories.push(this.newCategoryName.trim());
+        const name = this.newCategoryName.trim();
+        if (this.categories.some(c => c.name === name)) return;
+        try {
+          const id = await window.db.saveCategory(name);
+          this.categories.push({ id, name });
+          this.newCategoryName = '';
+        } catch (err) {
+          alert('Failed to save category: ' + err.message);
         }
-        this.newCategoryName = '';
       },
       
       confirmDeleteCategory(index) {
-        const catName = this.categories[index];
-        const isUsed = this.medicines.some(m => m.category === catName);
+        const cat = this.categories[index];
+        const isUsed = this.medicines.some(m => m.category === cat.name);
         if (isUsed) {
-          if (!confirm(`Warning: Some medicines are using the '${catName}' category. Deleting it will leave them uncategorized. Continue?`)) return;
+          if (!confirm(`Warning: Some medicines use '${cat.name}'. Deleting it will leave them uncategorized. Continue?`)) return;
         }
+        window.db.deleteCategory(cat.id).catch(err => console.error(err));
         this.categories.splice(index, 1);
       },
       
       startEditCategory(index) {
         this.editingCategoryIndex = index;
-        this.editingCategoryName = this.categories[index];
+        this.editingCategoryName = this.categories[index].name;
       },
       
-      saveCategoryEdit() {
+      async saveCategoryEdit() {
         if (this.editingCategoryIndex === null || !this.editingCategoryName.trim()) return;
-        const oldName = this.categories[this.editingCategoryIndex];
+        const cat = this.categories[this.editingCategoryIndex];
+        const oldName = cat.name;
         const newName = this.editingCategoryName.trim();
-        
-        // Update the category name in the list
-        this.categories[this.editingCategoryIndex] = newName;
-        
-        // Update all medicines using this category
-        this.medicines.forEach(m => {
-          if (m.category === oldName) m.category = newName;
-        });
-        
-        this.editingCategoryIndex = null;
-        this.editingCategoryName = '';
+        try {
+          await window.db.updateCategoryName(cat.id, oldName, newName);
+          this.categories[this.editingCategoryIndex] = { ...cat, name: newName };
+          // Update in-memory medicines too
+          this.medicines.forEach(m => { if (m.category === oldName) m.category = newName; });
+          this.editingCategoryIndex = null;
+          this.editingCategoryName = '';
+        } catch (err) {
+          alert('Failed to rename category: ' + err.message);
+        }
       },
       
       cancelCategoryEdit() {
@@ -560,12 +570,12 @@
                 >
                   All Categories
                 </button>
-                <template x-for="cat in categories">
+                <template x-for="cat in categories" :key="cat.id">
                   <button 
-                    @click="selectedCategory = cat; dropdownOpen = false"
+                    @click="selectedCategory = cat.name; dropdownOpen = false"
                     class="w-full px-6 py-3 text-left text-sm font-bold transition-colors hover:bg-slate-50"
-                    :class="selectedCategory === cat ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-600'"
-                    x-text="cat"
+                    :class="selectedCategory === cat.name ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-600'"
+                    x-text="cat.name"
                   ></button>
                 </template>
               </div>
@@ -935,8 +945,8 @@
                           <div class="relative">
                             <select x-model="newMedicine.category"
                               class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
-                              <template x-for="cat in categories">
-                                <option :value="cat" x-text="cat"></option>
+                              <template x-for="cat in categories" :key="cat.id">
+                                <option :value="cat.name" x-text="cat.name"></option>
                               </template>
                             </select>
                             <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
@@ -1062,8 +1072,8 @@
                           <label class="px-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Category</label>
                           <select x-model="newGeneralItem.category"
                             class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
-                            <template x-for="cat in categories">
-                              <option :value="cat" x-text="cat"></option>
+                            <template x-for="cat in categories" :key="cat.id">
+                              <option :value="cat.name" x-text="cat.name"></option>
                             </template>
                           </select>
                         </div>
@@ -1200,8 +1210,8 @@
                           <div class="relative">
                             <select x-model="editingMedicine.category"
                               class="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-semibold appearance-none">
-                              <template x-for="cat in categories">
-                                <option :value="cat" x-text="cat"></option>
+                              <template x-for="cat in categories" :key="cat.id">
+                                <option :value="cat.name" x-text="cat.name"></option>
                               </template>
                             </select>
                             <i data-lucide="chevron-down" class="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none"></i>
@@ -1365,7 +1375,7 @@
                           <!-- Display Mode -->
                           <template x-if="editingCategoryIndex !== index">
                             <div class="flex items-center justify-between w-full">
-                              <span class="font-bold text-slate-700" x-text="cat"></span>
+                              <span class="font-bold text-slate-700" x-text="cat.name"></span>
                               <div class="flex gap-2">
                                 <button @click="startEditCategory(index)"
                                   class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 transition-all cursor-pointer">

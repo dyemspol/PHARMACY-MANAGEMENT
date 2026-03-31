@@ -104,6 +104,7 @@
     cart: [],
     searchQuery: '',
     selectedCategory: 'All',
+    categories: ['All'],
     medicines: [],
     printerStatus: 'disconnected',
     currentUser: null,
@@ -127,6 +128,8 @@
       const waitForDb = setInterval(async () => {
         if (window.db) {
           clearInterval(waitForDb);
+          const rawCats = await window.db.getCategories();
+          this.categories = ['All', ...rawCats.map(c => c.name)];
           this.medicines = await window.db.fetchInventory();
           this.$nextTick(() => lucide.createIcons());
         }
@@ -505,11 +508,10 @@
               class="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-[1.25rem] focus:outline-none focus:ring-4 focus:ring-blue-800/5 focus:border-blue-800 transition-all text-sm shadow-sm">
           </div>
 
-          <div class="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            <template x-for="cat in ['All', 'Pain Relief', 'Antibiotics', 'Vitamins', 'Medical Supplies']">
-              <button @click="selectedCategory = cat"
-                :class="selectedCategory === cat ? 'bg-blue-900 text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'"
-                class="px-5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap" x-text="cat"></button>
+          <!-- Active Filters -->
+          <div class="flex gap-2 pb-2 mt-4 hide-scrollbar">
+            <template x-for="cat in categories">
+              <button @click="selectedCategory = cat" :class="selectedCategory === cat ? 'bg-blue-900 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'" class="px-5 py-2.5 rounded-2xl text-sm font-bold transition-all whitespace-nowrap" x-text="cat"></button>
             </template>
           </div>
         </div>
