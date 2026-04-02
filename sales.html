@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/pwa-192x192.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#1e40af" />
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="mobile-web-app-capable" content="yes">
@@ -90,6 +90,52 @@
             return sum + refund;
         }, 0);
     },
+    
+    // Employee Shift Computed Properties
+    get shiftExpectedCash() {
+        return (parseFloat(this.startingCash) || 0) + this.todayNet - this.todayRefunded;
+    },
+    get shiftActualCash() {
+        return parseFloat(this.actualCash) || 0;
+    },
+    get shiftVariance() {
+        return this.shiftActualCash - this.shiftExpectedCash;
+    },
+
+    async printEmployeeShift() {
+        if (!window.printerService || !window.printerService.isConnected()) {
+            alert('Printer not connected. Please go to Printer Setup.');
+            return;
+        }
+        try {
+            this.isLoading = true;
+            const reportData = {
+                posName: this.currentUser?.name || this.currentUser?.username || 'Employee',
+                startTime: '08:00 AM', 
+                startingCash: parseFloat(this.startingCash) || 0,
+                cashPayments: this.todayNet,
+                cashRefunds: this.todayRefunded,
+                expectedCash: this.shiftExpectedCash,
+                actualCash: this.shiftActualCash,
+                grossSales: this.todayGross,
+                refunds: this.todayRefunded,
+                discounts: this.todayDiscount,
+                netSales: this.todayNet - this.todayRefunded,
+                shiftNumber: Math.floor(Math.random() * 900) + 100
+            };
+            const success = await window.printerService.printShiftReport(reportData);
+            if (success) {
+                alert('Shift Report printed successfully! Put your receipt in the physical envelope.');
+                this.shiftReportModal = false;
+            } else {
+                alert('Printing failed. Please check printer connection.');
+            }
+        } catch (e) {
+            alert('Error printing: ' + e.message);
+        } finally {
+            this.isLoading = false;
+        }
+    },
 
     init() {
         window.addEventListener('resize', () => {
@@ -146,6 +192,8 @@
                             discount: '₱' + disc.toFixed(2),
                             subtotal: '₱' + (net + disc).toFixed(2),
                             total: data.total || ('₱' + net.toFixed(2)),
+                            cashTendered: data.cashTendered || null,
+                            changeGiven: data.changeGiven != null ? data.changeGiven : null,
                             cart: itemsArray.map(i => ({
                                 id: i.id || null,
                                 name: i.name,
@@ -258,6 +306,53 @@
         } catch (error) { alert('Error: ' + error.message); } finally { this.isLoading = false; }
     },
 
+    async printReceiptForSale() {
+        if (!window.printerService || !window.printerService.isConnected()) {
+            alert('Printer not connected. Please connect your thermal printer first in Printer Setup.');
+            return;
+        }
+        if (!this.selectedSale || !this.selectedSale.rawId) return;
+        try {
+            this.isLoading = true;
+            // Build items list from cart (exclude fully refunded items)
+            const items = (this.selectedSale.cart || []).map(item => ({
+                name: item.name,
+                quantity: item.quantity - (item.quantityRefunded || 0),
+                price: item.price
+            })).filter(item => item.quantity > 0);
+
+            const discValue = parseFloat((this.selectedSale.discount || '₱0').replace('₱','').replace('-','')) || 0;
+            const totalValue = parseFloat((this.selectedSale.total || '₱0').replace('₱','').replace(/,/g,'')) || 0;
+
+            // Use stored cashTendered/changeGiven from Firestore if available (Option 1)
+            const cashTendered = this.selectedSale.cashTendered != null
+                ? parseFloat(this.selectedSale.cashTendered)
+                : totalValue;
+            const changeGiven = this.selectedSale.changeGiven != null
+                ? parseFloat(this.selectedSale.changeGiven)
+                : 0;
+
+            const receiptData = {
+                cashierName: this.selectedSale.cashierName || this.currentUser?.name || 'Cashier',
+                items: items,
+                discount: discValue,
+                total: totalValue,
+                cash: cashTendered,
+                change: changeGiven
+            };
+            const success = await window.printerService.printReceipt(receiptData);
+            if (success) {
+                alert('Receipt printed successfully!');
+            } else {
+                alert('Printing failed. Please check your printer connection.');
+            }
+        } catch (error) {
+            alert('Error printing receipt: ' + error.message);
+        } finally {
+            this.isLoading = false;
+        }
+    },
+
     async printShiftReport() {
         if (!window.printerService || !window.printerService.isConnected()) {
             alert('Please connect your thermal printer first in Printer Setup.');
@@ -355,53 +450,14 @@
            <div><p class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Grand Total (Paid)</p></div>
             <p class="font-black text-3xl text-emerald-600 tracking-tighter" x-text="selectedSaleNetTotal"></p>
         </section>
-        <div class="mt-8 flex justify-end gap-3">
-          <button @click="saleDetailsModal = false" class="px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl">Close</button>
+        <div class="mt-8 flex flex-wrap justify-end gap-3">
+          <button @click="saleDetailsModal = false" class="px-6 py-3 bg-slate-50 text-slate-600 font-bold rounded-2xl hover:bg-slate-100 transition-all">Close</button>
           <button @click="refundSelectedSale" class="px-6 py-3 bg-rose-50 text-rose-600 font-bold rounded-2xl hover:bg-rose-600 hover:text-white transition-all">Refund All</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Shift Report Modal -->
-    <div x-show="shiftReportModal" x-cloak class="fixed inset-0 z-70 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-      <div class="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-bento" @click.away="shiftReportModal = false">
-        <div class="p-8 border-b border-slate-100 flex items-center justify-between">
-          <h2 class="text-2xl font-black text-slate-800 tracking-tight">Shift End Report</h2>
-          <button @click="shiftReportModal = false" class="text-slate-400 hover:text-slate-600 transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
-        </div>
-        <div class="p-8 space-y-6">
-          <div class="space-y-4">
-               <div>
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2 block">Starting Cash (Drawer)</label>
-                <div class="relative">
-                    <span class="absolute left-6 top-1/2 -translate-y-1/2 text-lg font-black text-slate-300">₱</span>
-                    <input type="number" x-model="startingCash" class="w-full pl-12 pr-6 py-4 bg-slate-50 border-2 border-transparent focus:border-blue-900 focus:bg-white rounded-2xl text-xl font-black text-slate-800 transition-all outline-none">
-                </div>
-               </div>
-               <div>
-                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2 block">Actual Cash Remaining</label>
-                <div class="relative">
-                    <span class="absolute left-6 top-1/2 -translate-y-1/2 text-lg font-black text-slate-300">₱</span>
-                    <input type="number" x-model="actualCash" class="w-full pl-12 pr-6 py-4 bg-slate-50 border-2 border-transparent focus:border-blue-900 focus:bg-white rounded-2xl text-xl font-black text-slate-800 transition-all outline-none">
-                </div>
-                <p class="text-[9px] text-slate-400 font-bold mt-2 ml-4">System expects: <span class="text-blue-900" x-text="'₱' + ((parseFloat(startingCash)||0) + todayNet - todayRefunded).toLocaleString()"></span></p>
-               </div>
-          </div>
-          
-          <div class="p-6 bg-blue-50 rounded-3xl border border-blue-100 space-y-3">
-             <div class="flex justify-between items-center text-[11px] font-bold text-blue-900 uppercase">
-                <span>Today's Net Sales</span>
-                <span x-text="'₱' + todayNet.toLocaleString()"></span>
-             </div>
-             <div class="flex justify-between items-center text-[11px] font-bold text-rose-500 uppercase">
-                <span>Today's Refunds</span>
-                <span x-text="'₱' + todayRefunded.toLocaleString()"></span>
-             </div>
-          </div>
-        </div>
-        <div class="p-8 pt-0 flex gap-3">
-          <button @click="shiftReportModal = false" class="flex-1 py-4 bg-slate-50 text-slate-500 font-bold rounded-2xl">Cancel</button>
-          <button @click="printShiftReport()" class="flex-[2] py-4 bg-blue-900 text-white font-black rounded-2xl shadow-xl shadow-blue-800/20 active:scale-95 transition-all">Print Summary</button>
+          <button @click="printReceiptForSale()" :disabled="isLoading" class="flex items-center gap-2 px-6 py-3 bg-blue-900 text-white font-black rounded-2xl shadow-lg shadow-blue-800/20 hover:bg-blue-800 active:scale-95 transition-all disabled:opacity-50">
+            <i data-lucide="printer" class="w-4 h-4" x-show="!isLoading"></i>
+            <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" x-show="isLoading" x-cloak></div>
+            <span x-text="isLoading ? 'Printing...' : 'Print Receipt'"></span>
+          </button>
         </div>
       </div>
     </div>
@@ -423,7 +479,8 @@
           <a href="inventory.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
           <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span class="font-semibold text-[15px]">POS Terminal</span></a>
           <a href="sales.html" class="nav-link w-full active"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Sales History</span></a>
-          <a href="reports.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
+          <a href="reports.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
+          <a href="shifting.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="clock" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Shifting</span></a>
           <a href="accounts.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
           <a href="printer_settings.html" class="nav-link w-full"><i data-lucide="printer" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Printer Setup</span></a>
         </nav>
@@ -446,13 +503,12 @@
             <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight uppercase">Sales History</h2>
             <div class="flex items-center gap-2 mt-1">
               <p class="text-[10px] md:text-sm text-slate-400 font-bold uppercase tracking-widest">Order Log &amp; Financial Tracking</p>
-              <span x-show="isEmployee" x-cloak class="px-2 py-0.5 bg-blue-900 text-white text-[9px] font-black rounded-md uppercase tracking-widest">Your Sales Today</span>
             </div>
           </div>
         </div>
         <div class="flex items-center gap-3">
           <!-- Printer Status Badge (clickable to reconnect) -->
-          <button class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl border shadow-sm mr-2 transition-all hover:scale-105 active:scale-95"
+          <button class="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-xl border shadow-sm transition-all hover:scale-105 active:scale-95"
                :class="{
                  'border-emerald-100 bg-emerald-50 cursor-default': printerStatus === 'ready',
                  'border-amber-100 bg-amber-50 cursor-wait': printerStatus === 'connecting',
@@ -477,7 +533,7 @@
                    'bg-amber-500 animate-bounce': printerStatus === 'connecting',
                    'bg-rose-500': printerStatus === 'disconnected'
                  }"></div>
-            <span class="text-[10px] font-black uppercase tracking-widest"
+            <span class="hidden sm:inline text-[10px] font-black uppercase tracking-widest"
                   :class="{
                     'text-emerald-700': printerStatus === 'ready',
                     'text-amber-700': printerStatus === 'connecting',
@@ -487,13 +543,13 @@
           </button>
 
           <button x-show="isEmployee" @click="shiftReportModal = true; startingCash = '0'; actualCash = (todayNet - todayRefunded).toFixed(2); $nextTick(() => lucide.createIcons());" 
-                  class="hidden md:flex items-center gap-2 px-6 py-3 bg-white border-2 border-slate-100 text-blue-900 font-bold rounded-2xl hover:bg-slate-50 transition-all active:scale-95 group">
+                  class="flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-3 bg-white border-2 border-slate-100 text-blue-900 font-bold rounded-2xl hover:bg-slate-50 transition-all active:scale-95 group">
             <i data-lucide="printer" class="w-4 h-4 text-blue-900"></i>
-            <span class="hidden sm:inline">Print Shift Report (Browser)</span>
+            <span class="hidden sm:inline">Print Shift Report</span>
           </button>
 
-          <button @click="exportCSV()" class="flex items-center gap-2 px-6 py-3 bg-blue-900 text-white font-bold rounded-2xl shadow-lg shadow-blue-800/20 hover:bg-blue-800 transition-all active:scale-95 group">
-            <i data-lucide="download" class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform"></i>
+          <button @click="exportCSV()" class="flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-3 bg-blue-900 text-white font-bold rounded-2xl shadow-lg shadow-blue-800/20 hover:bg-blue-800 transition-all active:scale-95 group">
+            <i data-lucide="download" class="w-4 h-4 text-white group-hover:-translate-y-0.5 transition-transform"></i>
             <span class="hidden sm:inline font-black">Export Report</span>
           </button>
         </div>
@@ -505,41 +561,46 @@
         <div x-show="isEmployee" x-cloak class="rounded-[3rem] bg-[#1e40af] p-8 text-white shadow-2xl shadow-blue-900/20">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
             <div class="flex items-center gap-4">
-              <div class="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10">
+              <div class="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center border border-white/10 shrink-0">
                 <i data-lucide="user" class="w-7 h-7 text-blue-200"></i>
               </div>
-              <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300/80 mb-1">Logged in as</p>
-                <p class="text-xl font-black tracking-tight" x-text="currentUser?.name || currentUser?.username"></p>
+              <div class="min-w-0">
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300/80 mb-1 truncate">Logged in as</p>
+                <p class="text-lg md:text-xl font-black tracking-tight truncate" x-text="currentUser?.name || currentUser?.username"></p>
               </div>
             </div>
             
-            <div class="text-left md:text-right">
-                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300/80 mb-1">Today</p>
-                <p class="text-xl font-black tracking-tight" x-text="new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})"></p>
+            <div class="text-left md:text-right flex flex-col items-start md:items-end gap-4 w-full md:w-auto">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-300/80 mb-1">Today</p>
+                  <p class="text-lg md:text-xl font-black tracking-tight" x-text="new Date().toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'})"></p>
+                </div>
+                <button @click="shiftReportModal = true" class="w-full md:w-auto px-6 py-3 md:py-2.5 bg-rose-500 hover:bg-rose-400 active:scale-95 text-white font-black rounded-2xl shadow-xl shadow-rose-900/30 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2 group border border-rose-400">
+                  <i data-lucide="power" class="w-4 h-4 group-hover:scale-110 transition-transform"></i> End Shift
+                </button>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            <div class="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/5 transition-transform hover:scale-[1.02]">
-              <p class="text-[10px] font-black uppercase tracking-widest text-blue-300/70 mb-2">Transactions</p>
-              <p class="text-3xl font-black tracking-tighter" x-text="todayTxCount"></p>
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+            <div class="bg-white/5 backdrop-blur-sm rounded-3xl p-5 md:p-6 border border-white/5 transition-transform hover:scale-[1.02]">
+              <p class="text-[10px] font-black uppercase tracking-widest text-blue-300/70 mb-2 truncate">Transactions</p>
+              <p class="text-2xl md:text-3xl font-black tracking-tighter" x-text="todayTxCount"></p>
             </div>
-            <div class="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/5 transition-transform hover:scale-[1.02]">
-              <p class="text-[10px] font-black uppercase tracking-widest text-blue-300/70 mb-2">Gross Sales</p>
-              <p class="text-3xl font-black tracking-tighter" x-text="'₱' + todayGross.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+            <div class="bg-white/5 backdrop-blur-sm rounded-3xl p-5 md:p-6 border border-white/5 transition-transform hover:scale-[1.02]">
+              <p class="text-[10px] font-black uppercase tracking-widest text-blue-300/70 mb-2 truncate">Gross Sales</p>
+              <p class="text-2xl md:text-3xl font-black tracking-tighter" x-text="'₱' + todayGross.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
             </div>
-            <div class="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/5 transition-transform hover:scale-[1.02]">
-              <p class="text-[10px] font-black uppercase tracking-widest text-blue-300/70 mb-2">Tot. Discount</p>
-              <p class="text-3xl font-black tracking-tighter" x-text="'₱' + todayDiscount.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+            <div class="bg-white/5 backdrop-blur-sm rounded-3xl p-5 md:p-6 border border-white/5 transition-transform hover:scale-[1.02]">
+              <p class="text-[10px] font-black uppercase tracking-widest text-blue-300/70 mb-2 truncate">Discount</p>
+              <p class="text-2xl md:text-3xl font-black tracking-tighter" x-text="'₱' + todayDiscount.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
             </div>
-            <div class="bg-white/5 backdrop-blur-sm rounded-3xl p-6 border border-white/5 transition-transform hover:scale-[1.02]">
-              <p class="text-[10px] font-black uppercase tracking-widest text-blue-300/70 mb-2">Tot. Refunded</p>
-              <p class="text-3xl font-black tracking-tighter" x-text="'₱' + todayRefunded.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+            <div class="bg-white/5 backdrop-blur-sm rounded-3xl p-5 md:p-6 border border-white/5 transition-transform hover:scale-[1.02]">
+              <p class="text-[10px] font-black uppercase tracking-widest text-blue-300/70 mb-2 truncate">Refunded</p>
+              <p class="text-2xl md:text-3xl font-black tracking-tighter" x-text="'₱' + todayRefunded.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
             </div>
-            <div class="bg-white/10 backdrop-blur-sm rounded-3xl p-6 border border-white/10 shadow-inner transition-transform hover:scale-[1.02]">
-              <p class="text-[10px] font-black uppercase tracking-widest text-blue-100 mb-2">Net Sales</p>
-              <p class="text-3xl font-black tracking-tighter" x-text="'₱' + todayNet.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+            <div class="col-span-2 sm:col-span-1 lg:col-span-1 bg-white/10 backdrop-blur-sm rounded-3xl p-5 md:p-6 border border-white/10 shadow-inner transition-transform hover:scale-[1.02]">
+              <p class="text-[10px] font-black uppercase tracking-widest text-blue-100 mb-2 truncate">Net Sales</p>
+              <p class="text-2xl md:text-3xl font-black tracking-tighter" x-text="'₱' + todayNet.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
             </div>
           </div>
         </div>
@@ -613,6 +674,81 @@
             <div class="flex gap-2">
               <button @click="prevPage" :disabled="currentPage === 1" class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 disabled:opacity-50"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
               <button @click="nextPage" :disabled="currentPage === totalPages" class="w-10 h-10 flex items-center justify-center bg-white border border-slate-100 rounded-xl text-slate-400 disabled:opacity-50"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- End Shift Modal -->
+      <div x-show="shiftReportModal" x-cloak class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl flex flex-col border border-slate-100 overflow-hidden transform transition-all my-auto" @click.away="shiftReportModal = false">
+          
+          <div class="px-8 py-6 border-b border-slate-100 bg-rose-50/20 flex items-center justify-between">
+            <div>
+              <h3 class="text-2xl font-black text-slate-800 tracking-tight">End Shift Remittance</h3>
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Audit your drawer before printing</p>
+            </div>
+            <button @click="shiftReportModal = false" class="text-slate-400 hover:text-slate-600 bg-white shadow-sm border border-slate-100 w-10 h-10 rounded-xl flex items-center justify-center transition-colors">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
+          
+          <div class="p-8 space-y-6">
+            <div class="grid grid-cols-2 gap-4">
+              <div class="bg-slate-50 border border-slate-100 p-4 rounded-3xl">
+                <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Gross Sales</p>
+                <p class="text-lg font-black text-slate-700" x-text="'₱' + todayGross.toLocaleString('en-PH', {minimumFractionDigits:2})"></p>
+              </div>
+              <div class="bg-slate-50 border border-slate-100 p-4 rounded-3xl">
+                <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Net Sales</p>
+                <p class="text-lg font-black text-emerald-600" x-text="'₱' + todayNet.toLocaleString('en-PH', {minimumFractionDigits:2})"></p>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-[10px] font-black tracking-widest uppercase text-slate-400 mb-2 ml-4">Starting Cash (Drawer Float)</label>
+                <div class="relative">
+                  <span class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 font-black">₱</span>
+                  <input type="number" x-model="startingCash" class="w-full bg-white border border-slate-200 focus:border-blue-900 rounded-2xl pl-10 pr-4 py-3 text-lg font-black text-slate-800 outline-none transition-all">
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-black tracking-widest uppercase text-slate-400 mb-2 ml-4">Actual Cash In Drawer</label>
+                <div class="relative">
+                  <span class="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 font-black">₱</span>
+                  <input type="number" x-model="actualCash" class="w-full bg-white border border-slate-200 focus:border-blue-900 rounded-2xl pl-10 pr-4 py-3 text-lg font-black text-slate-800 outline-none transition-all">
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-blue-50/50 border border-blue-100 p-5 rounded-[2rem] mt-2">
+              <div class="flex justify-between items-center mb-2">
+                <span class="text-[10px] font-black tracking-widest uppercase text-slate-500">System Expects:</span>
+                <span class="text-base font-black text-blue-900" x-text="'₱' + shiftExpectedCash.toLocaleString('en-PH', {minimumFractionDigits:2})"></span>
+              </div>
+              
+              <div class="flex justify-between items-center pt-2 border-t border-blue-100/50">
+                <span class="text-[10px] font-black tracking-widest uppercase text-slate-500">Variance:</span>
+                <span class="text-base font-black" :class="{
+                  'text-emerald-500': shiftVariance === 0,
+                  'text-rose-500': shiftVariance < 0,
+                  'text-blue-500': shiftVariance > 0
+                }" x-text="(shiftVariance > 0 ? '+₱' : (shiftVariance === 0 ? '₱' : '-₱')) + Math.abs(shiftVariance).toLocaleString('en-PH', {minimumFractionDigits:2})"></span>
+              </div>
+              <p class="text-[9px] font-bold text-right mt-1" :class="{
+                  'text-emerald-500': shiftVariance === 0,
+                  'text-rose-500': shiftVariance < 0,
+                  'text-blue-500': shiftVariance > 0
+                }" x-text="shiftVariance === 0 ? 'EXACT MATCH' : (shiftVariance < 0 ? 'SHORT' : 'OVER')"></p>
+            </div>
+
+            <div class="pt-4">
+              <button @click="printEmployeeShift()" :disabled="isLoading || printerStatus === 'connecting'" class="w-full bg-rose-500 hover:bg-rose-400 active:scale-95 text-white font-black py-4 rounded-2xl shadow-xl shadow-rose-900/20 transition-all flex items-center justify-center gap-2 group disabled:opacity-50">
+                <i data-lucide="printer" class="w-5 h-5 group-hover:-translate-y-0.5 transition-transform" x-show="!isLoading"></i>
+                <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" x-show="isLoading" x-cloak></div>
+                <span x-text="isLoading ? 'Printing...' : 'Print Thermal Z-Read'"></span>
+              </button>
             </div>
           </div>
         </div>

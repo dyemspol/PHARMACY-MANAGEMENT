@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#1e40af" />
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/pwa-512x512.png">
+    <title>Shift Management | RiGHT MEDS</title>
+    <link href="/src/style.css" rel="stylesheet" />
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdn.hugeicons.com/font/hgi-stroke-rounded.css" />
+    
+    <script type="module" src="/src/auth.js"></script>
+    <script type="module" src="/src/db.js"></script>
+    <script type="module">
+      import { printerService } from './src/services/printerService.js';
+      window.printerService = printerService;
+    </script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+        .bg-mesh {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: radial-gradient(circle at 10% 10%, #f1f5f9 0%, transparent 40%),
+                        radial-gradient(circle at 90% 10%, #eff6ff 0%, transparent 40%),
+                        radial-gradient(circle at 90% 90%, #fef2f2 0%, transparent 40%),
+                        radial-gradient(circle at 10% 90%, #f8fafc 0%, transparent 40%);
+        }
+        .nav-link.active {
+            background: #1e3a8a;
+            color: white;
+            box-shadow: 0 10px 20px -5px rgba(30, 58, 138, 0.4);
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 24px;
+            border-radius: 1.5rem;
+            color: #64748b;
+            transition: all 0.3s;
+        }
+        .nav-link:hover:not(.active) {
+            background: #f8fafc;
+            color: #1e3a8a;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="antialiased text-slate-900 overflow-x-hidden" x-data="{ 
+    sidebarOpen: window.innerWidth >= 1024,
+    isLoading: true,
+    currentUser: window.auth.getCurrentUser(),
+    targetDate: new Date().toLocaleDateString('en-CA'),
+    salesData: [],
+    printerStatus: 'disconnected',
+
+    async init() {
+        if (this.currentUser?.role !== 'admin') {
+            window.location.href = 'POST_terminal.html';
+            return;
+        }
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 1024) this.sidebarOpen = true;
+        });
+
+        const waitForPrinter = setInterval(() => {
+            if (window.printerService) {
+                clearInterval(waitForPrinter);
+                this.printerStatus = window.printerService.isConnected() ? 'ready' : 'disconnected';
+                window.printerService.onStatusChange = (status) => {
+                    this.printerStatus = status;
+                };
+                if (localStorage.getItem('bluetoothDeviceId')) {
+                    this.printerStatus = 'connecting';
+                    window.printerService.reconnect().then(ok => {
+                        if (!ok) this.printerStatus = 'disconnected';
+                    }).catch(() => {
+                        this.printerStatus = 'disconnected';
+                    });
+                }
+            }
+        }, 100);
+
+        const waitForDb = setInterval(() => {
+            if (window.salesDb) {
+                clearInterval(waitForDb);
+                window.salesDb.fetchSalesData((sales) => {
+                    this.salesData = sales;
+                    this.isLoading = false;
+                    this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
+                });
+            }
+        }, 100);
+
+        this.$watch('targetDate', () => {
+            this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
+        });
+    },
+
+    get groupedShifts() {
+        if (!this.salesData) return [];
+        const filtered = this.salesData.filter(s => (s.isoDate || s.date) === this.targetDate || new Date(s.date).toLocaleDateString('en-CA') === this.targetDate);
+        
+        const map = new Map();
+        for (let s of filtered) {
+            const name = s.cashierName || s.cashierUsername || 'Unknown';
+            if (!map.has(name)) {
+                map.set(name, {
+                    cashierName: name,
+                    txCount: 0,
+                    gross: 0,
+                    net: 0,
+                    discount: 0,
+                    refunded: 0,
+                    startingCash: '0',
+                    actualCash: '0'
+                });
+            }
+            const data = map.get(name);
+            data.txCount++;
+
+            const vGross = parseFloat((s.subtotal || '0').toString().replace('₱','').replace(/,/g,'')) || 0;
+            const vNet = parseFloat((s.total || '0').toString().replace('₱','').replace(/,/g,'')) || (s.totalAmount || 0);
+            const vDisc = parseFloat((s.discount || s.discountApplied || '0').toString().replace('₱','').replace(/,/g,'')) || 0;
+            
+            const itemsArray = Array.isArray(s.items) ? s.items : (s.cart || []);
+            const vRefund = itemsArray.reduce((isum, item) => {
+                const itemPrice = typeof item.price === 'number' ? item.price : parseFloat((item.price||'').toString().replace('₱','')) || 0;
+                return isum + ((item.quantityRefunded || 0) * itemPrice);
+            }, 0);
+
+            data.gross += vGross;
+            data.net += vNet;
+            data.discount += vDisc;
+            data.refunded += vRefund;
+        }
+
+        return Array.from(map.values()).map(data => {
+            data.actualCash = (data.net - data.refunded).toFixed(2);
+            return data;
+        });
+    },
+
+    async printShiftReport(shift) {
+        if (!window.printerService || !window.printerService.isConnected()) {
+            alert('Please connect your thermal printer first in Printer Setup.');
+            return;
+        }
+        try {
+            this.isLoading = true;
+            const reportData = {
+                posName: shift.cashierName,
+                startTime: '08:00 AM', 
+                startingCash: parseFloat(shift.startingCash) || 0,
+                cashPayments: shift.net,
+                cashRefunds: shift.refunded,
+                expectedCash: (parseFloat(shift.startingCash) || 0) + shift.net - shift.refunded,
+                actualCash: parseFloat(shift.actualCash) || 0,
+                grossSales: shift.gross,
+                refunds: shift.refunded,
+                discounts: shift.discount,
+                netSales: shift.net - shift.refunded,
+                shiftNumber: Math.floor(Math.random() * 900) + 100
+            };
+            const success = await window.printerService.printShiftReport(reportData);
+            if (success) {
+                alert('Shift report printed successfully!');
+            } else {
+                alert('Printing failed. Please check your printer connection.');
+            }
+        } catch (error) {
+            alert('Error printing: ' + error.message);
+        } finally {
+            this.isLoading = false;
+        }
+    }
+}">
+    <div class="bg-mesh"></div>
+
+    <!-- Sidebar -->
+    <aside class="fixed inset-y-0 left-0 z-50 w-72 transition-all duration-500 lg:translate-x-0" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+      <div class="h-full m-4 bg-white/80 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden">
+        <div class="px-6 py-8">
+          <a href="index.html" class="flex items-center justify-center group cursor-pointer transition-transform hover:scale-105">
+            <img src="/src/img/logo.png.jpg" alt="Logo" class="w-full h-auto object-contain transition-transform group-hover:scale-110">
+          </a>
+        </div>
+        <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
+          <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
+          <a href="index.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="layout-grid" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Dashboard</span></a>
+          <a href="inventory.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="package" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Inventory</span></a>
+          <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span class="font-semibold text-[15px]">POS Terminal</span></a>
+          <a href="sales.html" class="nav-link w-full"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Sales History</span></a>
+          <a href="reports.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
+          <a href="shifting.html" class="nav-link w-full active" x-show="currentUser?.role === 'admin'"><i data-lucide="clock" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Shifting</span></a>
+          <a href="accounts.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
+          <a href="printer_settings.html" class="nav-link w-full"><i data-lucide="printer" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Printer Setup</span></a>
+        </nav>
+        <div class="p-6 mt-auto">
+          <button @click="window.auth.logout()" class="w-full flex items-center justify-center gap-3 px-5 py-4 text-rose-500 hover:bg-rose-50 rounded-4xl transition-all duration-300 font-bold text-sm group">
+            <i data-lucide="log-out" class="w-5 h-5 transition-transform group-hover:-translate-x-1"></i><span>Logout Account</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="lg:ml-72 min-h-screen transition-all duration-500">
+      <header class="h-auto min-h-24 flex items-center justify-between px-6 md:px-10 py-5 sticky top-0 z-40 bg-white/40 backdrop-blur-md border-b border-white/20">
+        <div class="flex items-center gap-4 md:gap-6">
+          <button @click="sidebarOpen = !sidebarOpen" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white rounded-2xl shadow-sm border border-slate-100 lg:hidden">
+            <i data-lucide="menu" class="w-5 h-5 md:w-6 md:h-6 text-slate-600"></i>
+          </button>
+          <div>
+            <h2 class="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight leading-tight uppercase">Shift Management</h2>
+            <p class="text-[10px] md:text-sm text-slate-400 font-medium whitespace-nowrap uppercase tracking-widest mt-1">Audit & Verify Employee Shifts</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl border shadow-sm mr-2 transition-all hover:scale-105 active:scale-95"
+               :class="{
+                 'border-emerald-100 bg-emerald-50 cursor-default': printerStatus === 'ready',
+                 'border-amber-100 bg-amber-50 cursor-wait': printerStatus === 'connecting',
+                 'border-rose-100 bg-rose-50 hover:bg-rose-100 cursor-pointer': printerStatus === 'disconnected'
+               }"
+               :disabled="printerStatus === 'connecting' || printerStatus === 'ready'"
+               @click="if (printerStatus === 'disconnected') {
+                 printerStatus = 'connecting';
+                 const tryReconnect = async () => {
+                   if (localStorage.getItem('bluetoothDeviceId')) {
+                     const ok = await window.printerService.reconnect();
+                     if (!ok) { await window.printerService.connect(); }
+                   } else {
+                     await window.printerService.connect();
+                   }
+                 };
+                 tryReconnect().catch(() => { printerStatus = 'disconnected'; });
+               }">
+            <div class="w-2 h-2 rounded-full"
+                 :class="{
+                   'bg-emerald-500 animate-pulse': printerStatus === 'ready',
+                   'bg-amber-500 animate-bounce': printerStatus === 'connecting',
+                   'bg-rose-500': printerStatus === 'disconnected'
+                 }"></div>
+            <span class="text-[10px] font-black uppercase tracking-widest"
+                  :class="{
+                    'text-emerald-700': printerStatus === 'ready',
+                    'text-amber-700': printerStatus === 'connecting',
+                    'text-rose-700': printerStatus === 'disconnected'
+                  }"
+                  x-text="printerStatus === 'ready' ? 'Printer Online' : (printerStatus === 'connecting' ? 'Connecting...' : 'Tap to Connect')"></span>
+          </button>
+        </div>
+      </header>
+
+      <div class="p-8 space-y-8">
+        <!-- Date Selection -->
+        <div class="glass-card rounded-[2.5rem] p-6 flex items-center gap-6 shadow-sm border border-slate-100 w-full max-w-md">
+            <div class="w-14 h-14 bg-blue-50 text-blue-900 rounded-2xl flex items-center justify-center">
+                <i data-lucide="calendar" class="w-6 h-6"></i>
+            </div>
+            <div class="flex-1">
+                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Select Shift Date</label>
+                <input type="date" x-model="targetDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-black text-slate-700 outline-none focus:border-blue-900 transition-colors">
+            </div>
+        </div>
+
+        <template x-if="isLoading">
+            <div class="py-20 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse">Loading Shift Data...</div>
+        </template>
+
+        <template x-if="!isLoading && groupedShifts.length === 0">
+            <div class="py-20 text-center flex flex-col items-center">
+                <div class="w-20 h-20 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4 border border-slate-100"><i data-lucide="moon" class="w-8 h-8"></i></div>
+                <h4 class="text-xl font-black text-slate-700">No shifts recorded</h4>
+                <p class="text-sm font-medium text-slate-400 mt-2">There are no transactions found on this date.</p>
+            </div>
+        </template>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8" x-show="!isLoading">
+            <template x-for="shift in groupedShifts" :key="shift.cashierName">
+                <div class="glass-card rounded-[3rem] p-8 shadow-sm flex flex-col hover:shadow-xl transition-all duration-300">
+                    <div class="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
+                        <div class="w-16 h-16 bg-blue-900 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-lg border border-blue-800" x-text="shift.cashierName[0].toUpperCase()"></div>
+                        <div>
+                            <h3 class="text-2xl font-black text-slate-800 tracking-tight" x-text="shift.cashierName"></h3>
+                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest"><span x-text="shift.txCount"></span> transactions</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 mb-8">
+                        <div class="p-4 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col justify-center">
+                            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Gross Sales</p>
+                            <p class="text-xl font-black tracking-tight text-slate-700" x-text="'₱' + shift.gross.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+                        </div>
+                        <div class="p-4 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col justify-center">
+                            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Discount</p>
+                            <p class="text-xl font-black tracking-tight text-slate-700" x-text="'₱' + shift.discount.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+                        </div>
+                        <div class="p-4 bg-rose-50 rounded-3xl border border-rose-100 flex flex-col justify-center">
+                            <p class="text-[10px] font-black uppercase tracking-widest text-rose-400 mb-1">Refunds</p>
+                            <p class="text-xl font-black tracking-tight text-rose-600" x-text="'₱' + shift.refunded.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+                        </div>
+                        <div class="p-4 bg-blue-50 rounded-3xl border border-blue-100 flex flex-col justify-center">
+                            <p class="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">Net Sales</p>
+                            <p class="text-xl font-black tracking-tight text-blue-900" x-text="'₱' + shift.net.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 mb-8 bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100">
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2 block">Starting Cash (Drawer)</label>
+                            <div class="relative">
+                                <span class="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-black text-slate-300">₱</span>
+                                <input type="number" x-model="shift.startingCash" class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 focus:border-blue-900 rounded-2xl text-lg font-black text-slate-800 transition-all outline-none">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2 block">Actual Cash Remaining</label>
+                            <div class="relative">
+                                <span class="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-black text-slate-300">₱</span>
+                                <input type="number" x-model="shift.actualCash" class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 focus:border-blue-900 rounded-2xl text-lg font-black text-slate-800 transition-all outline-none">
+                            </div>
+                            <p class="text-[9px] text-slate-400 font-bold mt-2 ml-4">System expects: <span class="text-blue-900" x-text="'₱' + ((parseFloat(shift.startingCash)||0) + shift.net - shift.refunded).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></span></p>
+                        </div>
+                    </div>
+
+                    <div class="mt-auto">
+                        <button @click="printShiftReport(shift)" class="w-full py-4 bg-blue-900 text-white font-black rounded-2xl shadow-xl shadow-blue-800/20 active:scale-95 transition-all flex items-center justify-center gap-2 group">
+                            <i data-lucide="printer" class="w-5 h-5 group-hover:-translate-y-0.5 transition-transform"></i> Print Shift Summary
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </div>
+      </div>
+    </main>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
+      document.addEventListener('alpine:initialized', () => { if (window.lucide) lucide.createIcons(); });
+    </script>
+</body>
+</html>

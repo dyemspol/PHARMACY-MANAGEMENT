@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/pwa-192x192.png" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#1e40af" />
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="mobile-web-app-capable" content="yes">
@@ -317,24 +317,11 @@
         const stockVal = window.db.parseStock(medicine.stock);
         const costVal = window.db.parseCurrency(medicine.costPrice);
         const sellingVal = window.db.parseCurrency(medicine.sellingPrice);
-        let cleanName = medicine.name;
-        let strengthVal = '';
-        // Handle both with and without 'mg' for legacy data
-        const matchMg = medicine.name.match(/(.+) (\d+)mg$/);
-        const matchBare = medicine.name.match(/(.+) (\d+)$/);
-        
-        if (matchMg) {
-          cleanName = matchMg[1];
-          strengthVal = matchMg[2];
-        } else if (matchBare) {
-          cleanName = matchBare[1];
-          strengthVal = matchBare[2];
-        }
 
         this.editingMedicine = { 
-          name: cleanName, 
+          name: medicine.name, 
           brandName: medicine.brandName || '',
-          strength: strengthVal,
+          strength: medicine.strength || '',
           barcode: medicine.barcode || '',
           category: medicine.category, 
           type: medicine.type || 'N/A', 
@@ -351,6 +338,10 @@
       },
       async saveEdit() {
         if (!this.editingId) return;
+        if (!this.editingMedicine.name || this.editingMedicine.stock === '' || !this.editingMedicine.sellingPrice) {
+          alert('Name, Stock, and Selling Price are required.');
+          return;
+        }
         
         try {
           const updatedData = {
@@ -359,9 +350,9 @@
             strength: this.editingKind === 'Medicine' ? (this.editingMedicine.strength || '') : '',
             barcode: this.editingMedicine.barcode || 'N/A',
             category: this.editingMedicine.category,
-            stock: this.editingMedicine.stock + ' units',
+            stock: (this.editingMedicine.stock || 0) + ' units',
             costPrice: '₱' + parseFloat(this.editingMedicine.costPrice || 0).toFixed(2),
-            sellingPrice: '₱' + parseFloat(this.editingMedicine.sellingPrice).toFixed(2),
+            sellingPrice: '₱' + parseFloat(this.editingMedicine.sellingPrice || 0).toFixed(2),
             supplier: this.editingMedicine.supplier || 'N/A',
             batch: this.editingMedicine.batch || 'N/A',
             expiryDate: this.editingMedicine.expiryDate || 'N/A',
@@ -442,12 +433,12 @@
         <nav class="flex-1 px-4 py-2 space-y-2 overflow-y-auto">
           <p class="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Main Menu</p>
 
-          <a href="index.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
+          <a href="index.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'">
             <i data-lucide="layout-grid" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Dashboard</span>
           </a>
 
-          <a href="inventory.html" class="nav-link w-full active" x-show="window.auth.getCurrentUser()?.role === 'admin'">
+          <a href="inventory.html" class="nav-link w-full active" x-show="currentUser?.role === 'admin'">
             <i data-lucide="package" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Inventory</span>
           </a>
@@ -464,11 +455,15 @@
 
 
 
-          <a href="reports.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
+          <a href="reports.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'">
             <i data-lucide="file-text" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Reports</span>
           </a>
-          <a href="accounts.html" class="nav-link w-full" x-show="window.auth.getCurrentUser()?.role === 'admin'">
+          <a href="shifting.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'">
+            <i data-lucide="clock" class="w-5 h-5"></i>
+            <span class="font-semibold text-[15px]">Shifting</span>
+          </a>
+          <a href="accounts.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'">
             <i data-lucide="users" class="w-5 h-5"></i>
             <span class="font-semibold text-[15px]">Accounts</span>
           </a>
