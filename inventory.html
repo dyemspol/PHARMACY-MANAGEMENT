@@ -366,18 +366,13 @@
             updatedData.type = this.editingMedicine.type;
           }
 
-          if (parseInt(this.editingMedicine.stock) === 0) {
-            await window.db.deleteInventoryItem(this.editingId);
-            this.medicines = this.medicines.filter(m => m.id !== this.editingId);
-          } else {
-            await window.db.updateInventoryItem(this.editingId, updatedData);
+          await window.db.updateInventoryItem(this.editingId, updatedData);
 
-            const targetIndex = this.medicines.findIndex(m => m.id === this.editingId);
-            if (targetIndex !== -1) {
-              this.medicines[targetIndex] = { ...this.medicines[targetIndex], ...updatedData };
-              // Sort to maintain order
-              this.medicines.sort((a, b) => a.name.localeCompare(b.name));
-            }
+          const targetIndex = this.medicines.findIndex(m => m.id === this.editingId);
+          if (targetIndex !== -1) {
+            this.medicines[targetIndex] = { ...this.medicines[targetIndex], ...updatedData };
+            // Sort to maintain order
+            this.medicines.sort((a, b) => a.name.localeCompare(b.name));
           }
 
           alert('Inventory item updated successfully!');

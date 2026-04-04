@@ -323,14 +323,9 @@
           let currentStockNum = parseInt(String(med.stock).replace(' units', ''));
           let newStockNum = Math.max(0, currentStockNum - item.quantity);
           
-          if (newStockNum === 0) {
-            await window.db.deleteInventoryItem(med.id);
-            this.medicines = this.medicines.filter(m => m.id !== med.id);
-          } else {
-            let newStockStr = newStockNum + ' units';
-            med.stock = newStockStr;
-            await window.db.updateInventoryItem(med.id, { stock: newStockStr });
-          }
+          let newStockStr = newStockNum + ' units';
+          med.stock = newStockStr;
+          await window.db.updateInventoryItem(med.id, { stock: newStockStr });
         }
       }
       
