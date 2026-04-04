@@ -110,6 +110,10 @@
     printerStatus: 'disconnected',
     currentUser: null,
     
+    // Pagination
+    itemsPerPage: 10,
+    currentPage: 1,
+    
     async init() {
       // Initialize current user
       this.currentUser = window.auth.getCurrentUser();
@@ -137,9 +141,16 @@
       }, 100);
 
       // Re-initialize icons when filtering, searching or cart changes
-      this.$watch('searchQuery', () => this.$nextTick(() => lucide.createIcons()));
-      this.$watch('selectedCategory', () => this.$nextTick(() => lucide.createIcons()));
+      this.$watch('searchQuery', () => {
+        this.currentPage = 1;
+        this.$nextTick(() => lucide.createIcons());
+      });
+      this.$watch('selectedCategory', () => {
+        this.currentPage = 1;
+        this.$nextTick(() => lucide.createIcons());
+      });
       this.$watch('cart', () => this.$nextTick(() => lucide.createIcons()));
+      this.$watch('currentPage', () => this.$nextTick(() => lucide.createIcons()));
 
       // Listen for resize to sync sidebar state
       window.addEventListener('resize', () => {
@@ -372,6 +383,26 @@
       }, 1000);
       
       setTimeout(() => this.showSuccess = false, 3000);
+    },
+
+    get filteredMedicines() {
+      const term = this.searchQuery.toLowerCase();
+      return this.medicines.filter(m => 
+        (this.selectedCategory === 'All' || m.category === this.selectedCategory) && 
+        (m.name.toLowerCase().includes(term) || 
+        (m.brandName && m.brandName.toLowerCase().includes(term)) || 
+        (m.strength && m.strength.toLowerCase().includes(term)) || 
+        m.category.toLowerCase().includes(term))
+      ).sort((a, b) => a.name.localeCompare(b.name));
+    },
+
+    get paginatedMedicines() {
+      const start = (this.currentPage - 1) * this.itemsPerPage;
+      return this.filteredMedicines.slice(start, start + this.itemsPerPage);
+    },
+
+    get totalPages() {
+      return Math.ceil(this.filteredMedicines.length / this.itemsPerPage) || 1;
     }
   }">
 
@@ -548,9 +579,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              <template
-                x-for="med in medicines.filter(m => (selectedCategory === 'All' || m.category === selectedCategory) && (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || (m.brandName && m.brandName.toLowerCase().includes(searchQuery.toLowerCase())) || (m.strength && m.strength.toLowerCase().includes(searchQuery.toLowerCase())) || m.category.toLowerCase().includes(searchQuery.toLowerCase()))).sort((a, b) => a.name.localeCompare(b.name))"
-                :key="med.id">
+              <template x-for="med in paginatedMedicines" :key="med.id">
                 <tr @click="addToCart(med)" class="hover:bg-slate-50 transition-colors cursor-pointer group">
                   <!-- Product & Category -->
                   <td class="px-4 md:px-6 py-4">
@@ -629,6 +658,36 @@
               </template>
             </tbody>
           </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="px-8 mt-6 flex items-center justify-between gap-4 border-t border-slate-100 pt-6">
+          <div class="flex items-center gap-3">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Page <span class="text-slate-800" x-text="currentPage"></span> of <span class="text-slate-800" x-text="totalPages"></span>
+            </p>
+            <div class="h-1 w-24 bg-slate-100 rounded-full overflow-hidden">
+              <div class="h-full bg-blue-900 transition-all duration-500" :style="`width: ${(currentPage/totalPages)*100}%`"></div >
+            </div>
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" x-text="filteredMedicines.length + ' Total Items'"></span>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <button 
+              @click="currentPage--; $nextTick(() => lucide.createIcons())" 
+              :disabled="currentPage <= 1"
+              class="w-10 h-10 flex items-center justify-center bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+            >
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <button 
+              @click="currentPage++; $nextTick(() => lucide.createIcons())" 
+              :disabled="currentPage >= totalPages"
+              class="w-10 h-10 flex items-center justify-center bg-blue-900 border border-blue-800 rounded-xl text-white hover:bg-blue-800 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-md shadow-blue-900/20"
+            >
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
         </div>
       </div>
 

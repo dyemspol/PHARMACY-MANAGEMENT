@@ -600,6 +600,7 @@
                       <thead>
                         <tr class="bg-slate-50/50">
                           <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Medicine</th>
+                          <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden md:table-cell">Brand Name</th>
                           <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden md:table-cell">Strength</th>
                           <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden lg:table-cell">Type</th>
                           <th class="px-4 md:px-8 py-4 md:py-6 text-[11px] font-extrabold text-slate-400 uppercase tracking-widest text-center hidden xl:table-cell">Batch / Supplier</th>
@@ -613,7 +614,7 @@
                       <tbody class="divide-y divide-slate-100/50">
                         <template x-if="isLoading">
                            <tr>
-                              <td colspan="9" class="px-8 py-10 text-center text-slate-400 font-bold">
+                              <td colspan="10" class="px-8 py-10 text-center text-slate-400 font-bold">
                                   <i data-lucide="loader-2" class="w-10 h-10 mx-auto mb-2 opacity-50 animate-spin"></i>
                                   Loading medical inventory...
                               </td>
@@ -621,7 +622,7 @@
                         </template>
                         <template x-if="!isLoading && filteredMedicinesOnly.length === 0">
                            <tr>
-                              <td colspan="9" class="px-8 py-10 text-center text-slate-400 font-bold">
+                              <td colspan="10" class="px-8 py-10 text-center text-slate-400 font-bold">
                                   <i data-lucide="package-x" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
                                   No medicines available yet.
                               </td>
@@ -636,16 +637,19 @@
                                   x-text="medicine.name.charAt(0)">
                                 </div>
                                 <div class="flex flex-col">
-                                  <div class="flex items-center gap-2">
+                                  <div class="flex flex-col">
                                     <span class="text-sm md:text-[15px] font-bold text-slate-800" x-text="medicine.name"></span>
-                                    <template x-if="medicine.brandName">
-                                      <span class="text-[9px] md:text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md hidden sm:inline-block" x-text="medicine.brandName"></span>
-                                    </template>
                                   </div>
-                                  <span class="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest"
-                                    x-text="medicine.category"></span>
                                 </div>
                               </div>
+                            </td>
+                            <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden md:table-cell">
+                              <template x-if="medicine.brandName">
+                                <span class="text-[9px] md:text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md" x-text="medicine.brandName"></span>
+                              </template>
+                              <template x-if="!medicine.brandName">
+                                <span class="text-[9px] md:text-[11px] font-bold text-slate-300">N/A</span>
+                              </template>
                             </td>
                             <td class="px-4 md:px-8 py-4 md:py-6 text-center hidden md:table-cell">
                               <span class="text-xs md:text-sm font-bold text-slate-600" 

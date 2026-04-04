@@ -14,6 +14,7 @@ function dashboardApp() {
     showExpiringModal: false,
     showLowStockModal: false,
     isLoading: true,
+    lowStockSearchTerm: '',
     stats: {
       grossSales: 0,      // Before deductions
       discountTotal: 0,   // Total savings given
@@ -26,6 +27,15 @@ function dashboardApp() {
     },
     criticalItems: [],
     lowStockItems: [],
+    get filteredLowStockItems() {
+      if (!this.lowStockSearchTerm) return this.lowStockItems;
+      const term = this.lowStockSearchTerm.toLowerCase();
+      return this.lowStockItems.filter(item => 
+        (item.name || '').toLowerCase().includes(term) ||
+        (item.brandName || '').toLowerCase().includes(term) ||
+        (item.strength || '').toLowerCase().includes(term)
+      );
+    },
     charts: { sales: null },
 
     get todayFormatted() {

@@ -259,9 +259,13 @@
           },
 
           exportLowStockReport() {
-            let csv = '"Product Name","Category","Current Stock"\n';
-            this.inventoryData.filter(i => i.numericStock < 15).forEach(i => {
-              csv += `"${i.name}","${i.category}","${i.numericStock}"\n`;
+            let csv = '"Product Name","Brand Name","Strength","Category","Current Stock"\n';
+            this.inventoryData.filter(i => {
+              const stock = window.db.parseStock(i.stock);
+              const threshold = parseInt(i.lowStockThreshold) || 50;
+              return stock <= threshold;
+            }).forEach(i => {
+              csv += `"${i.name}","${i.brandName || 'N/A'}","${i.strength || 'Standard'}","${i.category}","${window.db.parseStock(i.stock)}"\n`;
             });
             this.downloadCSV(csv, 'Low_Stock_Report.csv');
           },
@@ -538,23 +542,49 @@
                   </div>
                   <span class="text-[10px] font-black text-rose-600 uppercase bg-rose-50 px-3 py-1 rounded-full border border-rose-100" x-show="lowStockCount > 0" x-text="lowStockCount + ' Items Low'"></span>
                 </div>
-                <div class="space-y-4">
-                  <template x-if="!isLoading && lowStockItems.length === 0"><div class="p-12 text-center text-emerald-500 text-xs font-bold uppercase tracking-widest">Stock health is excellent</div></template>
-                  <template x-for="item in lowStockItems">
-                    <div class="flex items-center justify-between p-4 bg-rose-50/30 rounded-3xl border border-rose-100">
-                      <div class="flex items-center gap-4">
-                        <div class="w-8 h-8 rounded-xl bg-white flex items-center justify-center shadow-sm text-rose-500"><i data-lucide="package" class="w-4 h-4"></i></div>
-                        <div>
-                          <h5 class="font-bold text-slate-800 text-sm" x-text="item.name"></h5>
-                          <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest" x-text="item.category"></p>
-                        </div>
-                      </div>
-                      <span class="px-3 py-1 bg-white border border-rose-100 text-rose-600 rounded-full text-[10px] font-black" x-text="item.numericStock + ' Left'"></span>
-                    </div>
-                  </template>
-                   <div x-show="lowStockCount > 5" class="text-center pt-2">
-                     <a href="inventory.html" class="text-[10px] font-black text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors">See all <span x-text="lowStockCount"></span> alerts &rarr;</a>
-                  </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse">
+                    <thead>
+                      <tr class="border-b border-slate-100">
+                        <th class="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Product</th>
+                        <th class="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Brand</th>
+                        <th class="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Strength</th>
+                        <th class="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Stock</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50">
+                      <template x-if="!isLoading && lowStockItems.length === 0">
+                        <tr>
+                          <td colspan="4" class="p-12 text-center text-emerald-500 text-xs font-bold uppercase tracking-widest">Stock health is excellent</td>
+                        </tr>
+                      </template>
+                      <template x-for="item in lowStockItems">
+                        <tr class="group hover:bg-slate-50/50 transition-colors">
+                          <td class="py-4">
+                            <div class="flex items-center gap-3">
+                              <div class="w-8 h-8 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500 shrink-0"><i data-lucide="package" class="w-4 h-4"></i></div>
+                              <div>
+                                <h5 class="font-bold text-slate-800 text-sm" x-text="item.name"></h5>
+                                <p class="text-[9px] text-slate-400 font-black uppercase tracking-widest" x-text="item.category"></p>
+                              </div>
+                            </div>
+                          </td>
+                          <td class="py-4 text-center">
+                            <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md" x-text="item.brandName || 'N/A'"></span>
+                          </td>
+                          <td class="py-4 text-center">
+                            <span class="text-[10px] font-bold text-slate-500" x-text="item.strength || 'N/A'"></span>
+                          </td>
+                          <td class="py-4 text-right px-2">
+                             <span class="px-3 py-1 bg-rose-50 border border-rose-100 text-rose-600 rounded-full text-[10px] font-black" x-text="window.db.parseStock(item.stock) + ' Left'"></span>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div x-show="lowStockCount > 5" class="text-center pt-6">
+                   <a href="inventory.html" class="text-[10px] font-black text-indigo-500 uppercase tracking-widest hover:text-indigo-700 transition-colors">Go to inventory &rarr;</a>
                 </div>
               </div>
             </div>
