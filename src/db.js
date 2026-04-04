@@ -1,4 +1,4 @@
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, writeBatch } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, writeBatch, orderBy, limit, Timestamp } from "firebase/firestore";
 import { db } from "./firebase";
 
 const INVENTORY_COLLECTION = "inventory";
@@ -194,3 +194,128 @@ export const returnItemsToInventory = async (items) => {
     throw error;
   }
 };
+
+// ────────── SHIFT MANAGEMENT ──────────
+
+const SHIFTS_COLLECTION = "shifts";
+const SALES_COLLECTION = "salesHistory";
+
+// Save a completed shift record
+export const saveShiftRecord = async (shiftData) => {
+  try {
+    const docRef = await addDoc(collection(db, SHIFTS_COLLECTION), {
+      ...shiftData,
+      createdAt: Timestamp.now()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error("Error saving shift record:", error);
+    throw error;
+  }
+};
+
+// Utility for consistent Local YYYY-MM-DD
+export const getLocalDateStr = (date = new Date()) => {
+    const d = new Date(date);
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().split('T')[0];
+};
+
+// Fetch shift records
+export const fetchShifts = async (targetDate = null, cashierUsername = null) => {
+  try {
+    let q = collection(db, SHIFTS_COLLECTION);
+    
+    // Build query based on provided filters
+    if (targetDate && cashierUsername) {
+      q = query(q, where("date", "==", targetDate), where("cashierUsername", "==", cashierUsername));
+    } else if (targetDate) {
+      q = query(q, where("date", "==", targetDate));
+    } else if (cashierUsername) {
+      q = query(q, where("cashierUsername", "==", cashierUsername), limit(50));
+    } else {
+      q = query(q, limit(100));
+    }
+    
+    const snapshot = await getDocs(q);
+    const shifts = [];
+    snapshot.forEach(doc => shifts.push({ id: doc.id, ...doc.data() }));
+    
+    // Final in-memory sort (latest first)
+    return shifts.sort((a, b) => {
+        const timeA = new Date(a.endTime || a.createdAt?.toDate() || 0).getTime();
+        const timeB = new Date(b.endTime || b.createdAt?.toDate() || 0).getTime();
+        return timeB - timeA;
+    });
+  } catch (error) {
+    console.error("Error fetching shifts:", error);
+    return [];
+  }
+};
+
+// Calculate total sales for a cashier since a specific timestamp
+// Note: startTime is a Date object, cashierUsername is a string
+export const getSalesTotalAfter = async (startTime, cashierUsername) => {
+  try {
+    const q = query(
+      collection(db, SALES_COLLECTION),
+      where("cashierUsername", "==", cashierUsername),
+      where("createdAt", ">=", Timestamp.fromDate(startTime))
+    );
+    const snapshot = await getDocs(q);
+    let total = 0;
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      total += data.totalAmount || 0;
+    });
+    return total;
+  } catch (error) {
+    console.error("Error calculating shift sales:", error);
+    return 0;
+  }
+};
+
+export const getShiftMetadata = () => {
+    const startStr = localStorage.getItem('currentShiftStartedAt');
+    if (!startStr) return null;
+    return {
+        startTime: new Date(startStr),
+        startTimeStr: new Date(startStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+};
+
+export const startShiftLocal = () => {
+    localStorage.setItem('currentShiftStartedAt', new Date().toISOString());
+};
+
+export const endShiftLocal = () => {
+    localStorage.removeItem('currentShiftStartedAt');
+};
+
+// ────────── GLOBAL EXPOSURE (FOR ALPINE.JS) ──────────
+if (typeof window !== 'undefined') {
+    window.db = {
+        getCategories,
+        saveCategory,
+        updateCategoryName,
+        deleteCategory,
+        fetchInventory,
+        addInventoryItem,
+        updateInventoryItem,
+        deleteInventoryItem,
+        parseStock,
+        isLowStock,
+        getStockSeverity,
+        parseCurrency,
+        formatCurrency,
+        returnItemsToInventory,
+        saveShiftRecord,
+        getLocalDateStr,
+        fetchShifts,
+        getSalesTotalAfter,
+        getShiftMetadata,
+        startShiftLocal,
+        endShiftLocal
+    };
+}
+

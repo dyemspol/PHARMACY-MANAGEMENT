@@ -70,13 +70,13 @@
     sidebarOpen: window.innerWidth >= 1024,
     isLoading: true,
     currentUser: window.auth.getCurrentUser(),
-    targetDate: new Date().toLocaleDateString('en-CA'),
+    targetDate: new Date().toISOString().split('T')[0],
     salesData: [],
     printerStatus: 'disconnected',
 
     async init() {
-        if (this.currentUser?.role !== 'admin') {
-            window.location.href = 'POST_terminal.html';
+        if (!this.currentUser) {
+            window.location.href = 'login.html';
             return;
         }
 
@@ -102,64 +102,76 @@
             }
         }, 100);
 
+        // Fetch shift records whenever the date changes
+        this.$watch('targetDate', () => {
+            this.fetchShiftRecords();
+        });
+
+        // First fetch
         const waitForDb = setInterval(() => {
-            if (window.salesDb) {
+            if (window.db && typeof window.db.getLocalDateStr === 'function') {
                 clearInterval(waitForDb);
-                window.salesDb.fetchSalesData((sales) => {
-                    this.salesData = sales;
-                    this.isLoading = false;
-                    this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
-                });
+                this.targetDate = window.db.getLocalDateStr();
+                this.fetchShiftRecords();
             }
         }, 100);
-
-        this.$watch('targetDate', () => {
-            this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
-        });
+        
+        // Timeout after 5 seconds if DB never appears
+        setTimeout(() => {
+            if (this.isLoading && this.salesData.length === 0) {
+                clearInterval(waitForDb);
+                this.isLoading = false;
+            }
+        }, 5000);
     },
 
-    get groupedShifts() {
-        if (!this.salesData) return [];
-        const filtered = this.salesData.filter(s => (s.isoDate || s.date) === this.targetDate || new Date(s.date).toLocaleDateString('en-CA') === this.targetDate);
-        
-        const map = new Map();
-        for (let s of filtered) {
-            const name = s.cashierName || s.cashierUsername || 'Unknown';
-            if (!map.has(name)) {
-                map.set(name, {
-                    cashierName: name,
-                    txCount: 0,
-                    gross: 0,
-                    net: 0,
-                    discount: 0,
-                    refunded: 0,
-                    startingCash: '0',
-                    actualCash: '0'
-                });
-            }
-            const data = map.get(name);
-            data.txCount++;
-
-            const vGross = parseFloat((s.subtotal || '0').toString().replace('₱','').replace(/,/g,'')) || 0;
-            const vNet = parseFloat((s.total || '0').toString().replace('₱','').replace(/,/g,'')) || (s.totalAmount || 0);
-            const vDisc = parseFloat((s.discount || s.discountApplied || '0').toString().replace('₱','').replace(/,/g,'')) || 0;
+    async fetchShiftRecords() {
+        try {
+            this.isLoading = true;
+            console.log('Fetching shift records for date:', this.targetDate);
             
-            const itemsArray = Array.isArray(s.items) ? s.items : (s.cart || []);
-            const vRefund = itemsArray.reduce((isum, item) => {
-                const itemPrice = typeof item.price === 'number' ? item.price : parseFloat((item.price||'').toString().replace('₱','')) || 0;
-                return isum + ((item.quantityRefunded || 0) * itemPrice);
-            }, 0);
+            // 1. Try explicit fetch from Firestore
+            if (!window.db || typeof window.db.fetchShifts !== 'function') return; 
+            
+            const cashierFilter = this.currentUser?.role === 'admin' ? null : this.currentUser?.username;
+            let results = await window.db.fetchShifts(this.targetDate, cashierFilter);
+            
+            // 2. Robust Fallback: If no data found for specific date, fetch latest 50 and filter locally
+            // This handles cases where dates might have been saved with slightly different formats or timezone offsets
+            if (results.length === 0) {
+                console.warn('No direct matches in Firestore. Running robust fallback fetch...');
+                const allRecent = await window.db.fetchShifts(null, cashierFilter);
+                results = allRecent.filter(r => r.date === this.targetDate);
+                
+                if (results.length > 0) {
+                    console.log('Found', results.length, 'records using local filtering fallback.');
+                }
+            }
 
-            data.gross += vGross;
-            data.net += vNet;
-            data.discount += vDisc;
-            data.refunded += vRefund;
+            this.salesData = results;
+            this.isLoading = false;
+            this.$nextTick(() => { if(window.lucide) lucide.createIcons(); });
+        } catch (error) {
+            console.error('Error fetching shift records:', error);
+            this.isLoading = false;
         }
+    },
 
-        return Array.from(map.values()).map(data => {
-            data.actualCash = (data.net - data.refunded).toFixed(2);
-            return data;
-        });
+    get shiftRecords() {
+        return this.salesData || [];
+    },
+
+    formatTime(timeStr) {
+        if (!timeStr) return 'N/A';
+        return new Date(timeStr).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    },
+
+    calculateDuration(start, end) {
+        if (!start || !end) return 'N/A';
+        const diff = new Date(end) - new Date(start);
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        return `${hours}h ${mins}m`;
     },
 
     async printShiftReport(shift) {
@@ -171,16 +183,17 @@
             this.isLoading = true;
             const reportData = {
                 posName: shift.cashierName,
-                startTime: '08:00 AM', 
+                startTime: this.formatTime(shift.startTime),
+                endTime: this.formatTime(shift.endTime),
                 startingCash: parseFloat(shift.startingCash) || 0,
-                cashPayments: shift.net,
-                cashRefunds: shift.refunded,
-                expectedCash: (parseFloat(shift.startingCash) || 0) + shift.net - shift.refunded,
+                cashPayments: shift.expectedSales,
+                cashRefunds: shift.totalRefunded || 0,
+                expectedCash: (parseFloat(shift.startingCash) || 0) + shift.expectedSales - (shift.totalRefunded || 0),
                 actualCash: parseFloat(shift.actualCash) || 0,
-                grossSales: shift.gross,
-                refunds: shift.refunded,
-                discounts: shift.discount,
-                netSales: shift.net - shift.refunded,
+                grossSales: shift.totalGross || shift.expectedSales,
+                refunds: shift.totalRefunded || 0,
+                discounts: shift.totalDiscount || 0,
+                netSales: shift.expectedSales - (shift.totalRefunded || 0),
                 shiftNumber: Math.floor(Math.random() * 900) + 100
             };
             const success = await window.printerService.printShiftReport(reportData);
@@ -213,7 +226,7 @@
           <a href="POST_terminal.html" class="nav-link w-full"><i data-lucide="shopping-bag" class="w-5 h-5"></i><span class="font-semibold text-[15px]">POS Terminal</span></a>
           <a href="sales.html" class="nav-link w-full"><i data-lucide="bar-chart-3" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Sales History</span></a>
           <a href="reports.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="file-text" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Reports</span></a>
-          <a href="shifting.html" class="nav-link w-full active" x-show="currentUser?.role === 'admin'"><i data-lucide="clock" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Shifting</span></a>
+          <a href="shifting.html" class="nav-link w-full active"><i data-lucide="clock" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Shifting</span></a>
           <a href="accounts.html" class="nav-link w-full" x-show="currentUser?.role === 'admin'"><i data-lucide="users" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Accounts</span></a>
           <a href="printer_settings.html" class="nav-link w-full"><i data-lucide="printer" class="w-5 h-5"></i><span class="font-semibold text-[15px]">Printer Setup</span></a>
         </nav>
@@ -290,74 +303,82 @@
             <div class="py-20 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse">Loading Shift Data...</div>
         </template>
 
-        <template x-if="!isLoading && groupedShifts.length === 0">
-            <div class="py-20 text-center flex flex-col items-center">
-                <div class="w-20 h-20 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-4 border border-slate-100"><i data-lucide="moon" class="w-8 h-8"></i></div>
-                <h4 class="text-xl font-black text-slate-700">No shifts recorded</h4>
-                <p class="text-sm font-medium text-slate-400 mt-2">There are no transactions found on this date.</p>
+        <template x-if="!isLoading && shiftRecords.length === 0">
+            <div class="py-20 text-center flex flex-col items-center glass-card rounded-[3rem] border border-slate-100 shadow-sm">
+                <div class="w-24 h-24 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mb-6 border border-slate-100"><i data-lucide="moon" class="w-10 h-10"></i></div>
+                <h4 class="text-2xl font-black text-slate-700">No shift records found</h4>
+                <p class="text-sm font-medium text-slate-400 mt-2">There are no finalized shifts on this date.</p>
             </div>
         </template>
 
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8" x-show="!isLoading">
-            <template x-for="shift in groupedShifts" :key="shift.cashierName">
-                <div class="glass-card rounded-[3rem] p-8 shadow-sm flex flex-col hover:shadow-xl transition-all duration-300">
-                    <div class="flex items-center gap-4 mb-6 pb-6 border-b border-slate-100">
-                        <div class="w-16 h-16 bg-blue-900 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-lg border border-blue-800" x-text="shift.cashierName[0].toUpperCase()"></div>
-                        <div>
-                            <h3 class="text-2xl font-black text-slate-800 tracking-tight" x-text="shift.cashierName"></h3>
-                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest"><span x-text="shift.txCount"></span> transactions</p>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4 mb-8">
-                        <div class="p-4 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col justify-center">
-                            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Gross Sales</p>
-                            <p class="text-xl font-black tracking-tight text-slate-700" x-text="'₱' + shift.gross.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
-                        </div>
-                        <div class="p-4 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col justify-center">
-                            <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Discount</p>
-                            <p class="text-xl font-black tracking-tight text-slate-700" x-text="'₱' + shift.discount.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
-                        </div>
-                        <div class="p-4 bg-rose-50 rounded-3xl border border-rose-100 flex flex-col justify-center">
-                            <p class="text-[10px] font-black uppercase tracking-widest text-rose-400 mb-1">Refunds</p>
-                            <p class="text-xl font-black tracking-tight text-rose-600" x-text="'₱' + shift.refunded.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
-                        </div>
-                        <div class="p-4 bg-blue-50 rounded-3xl border border-blue-100 flex flex-col justify-center">
-                            <p class="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1">Net Sales</p>
-                            <p class="text-xl font-black tracking-tight text-blue-900" x-text="'₱' + shift.net.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
-                        </div>
-                    </div>
-
-                    <div class="space-y-4 mb-8 bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100">
-                        <div>
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2 block">Starting Cash (Drawer)</label>
-                            <div class="relative">
-                                <span class="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-black text-slate-300">₱</span>
-                                <input type="number" x-model="shift.startingCash" class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 focus:border-blue-900 rounded-2xl text-lg font-black text-slate-800 transition-all outline-none">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4 mb-2 block">Actual Cash Remaining</label>
-                            <div class="relative">
-                                <span class="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-black text-slate-300">₱</span>
-                                <input type="number" x-model="shift.actualCash" class="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 focus:border-blue-900 rounded-2xl text-lg font-black text-slate-800 transition-all outline-none">
-                            </div>
-                            <p class="text-[9px] text-slate-400 font-bold mt-2 ml-4">System expects: <span class="text-blue-900" x-text="'₱' + ((parseFloat(shift.startingCash)||0) + shift.net - shift.refunded).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></span></p>
-                        </div>
-                    </div>
-
-                    <div class="mt-auto">
-                        <button @click="printShiftReport(shift)" class="w-full py-4 bg-blue-900 text-white font-black rounded-2xl shadow-xl shadow-blue-800/20 active:scale-95 transition-all flex items-center justify-center gap-2 group">
-                            <i data-lucide="printer" class="w-5 h-5 group-hover:-translate-y-0.5 transition-transform"></i> Print Shift Summary
-                        </button>
-                    </div>
-                </div>
-            </template>
+        <!-- Shift Records Table -->
+        <div class="glass-card rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden" x-show="!isLoading && shiftRecords.length > 0">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[1200px]">
+                    <thead>
+                        <tr class="bg-slate-50/50">
+                            <th class="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Date</th>
+                            <th class="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Name</th>
+                            <th class="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Start-End Time</th>
+                            <th class="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Total Sales</th>
+                            <th class="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Expected</th>
+                            <th class="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Actual</th>
+                            <th class="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
+                            <th class="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <template x-for="record in shiftRecords" :key="record.id">
+                            <tr class="hover:bg-slate-50/50 transition-colors group">
+                                <td class="px-8 py-6">
+                                    <p class="text-sm font-bold text-slate-600" x-text="new Date(record.date).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})"></p>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 bg-blue-900 text-white rounded-xl flex items-center justify-center font-black text-xs" x-text="record.cashierName[0]"></div>
+                                        <div>
+                                            <p class="text-sm font-black text-slate-800 leading-none" x-text="record.cashierName"></p>
+                                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1" x-text="record.cashierUsername"></p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-[11px] font-bold text-slate-600 px-2 py-1 bg-slate-50 rounded-lg" x-text="formatTime(record.startTime)"></p>
+                                        <span class="text-slate-300">→</span>
+                                        <p class="text-[11px] font-bold text-slate-600 px-2 py-1 bg-slate-50 rounded-lg" x-text="formatTime(record.endTime)"></p>
+                                    </div>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <p class="text-sm font-black text-slate-800" x-text="'₱' + (record.totalGross || 0).toLocaleString('en-PH', {minimumFractionDigits:2})"></p>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <p class="text-sm font-black text-slate-600" x-text="'₱' + record.expectedSales.toLocaleString('en-PH', {minimumFractionDigits:2})"></p>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <p class="text-sm font-black text-emerald-600" x-text="'₱' + record.actualCash.toLocaleString('en-PH', {minimumFractionDigits:2})"></p>
+                                </td>
+                                <td class="px-8 py-6">
+                                    <span :class="record.discrepancy === 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : (record.discrepancy < 0 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-blue-50 text-blue-600 border-blue-100')"
+                                          class="px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border border-dashed"
+                                          x-text="record.discrepancy === 0 ? 'Exact Match' : (record.discrepancy < 0 ? 'Shortage (₱' + Math.abs(record.discrepancy).toLocaleString('en-PH', {minimumFractionDigits:2}) + ')' : 'Overage (₱' + record.discrepancy.toLocaleString('en-PH', {minimumFractionDigits:2}) + ')')"></span>
+                                </td>
+                                <td class="px-8 py-6 text-right">
+                                    <button @click="printShiftReport(record)" class="w-10 h-10 bg-slate-50 text-blue-900 hover:bg-blue-900 hover:text-white border border-transparent rounded-xl flex items-center justify-center transition-all ml-auto hover:shadow-lg hover:shadow-blue-900/20 active:scale-95">
+                                        <i data-lucide="printer" class="w-4 h-4"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
         </div>
       </div>
     </main>
 
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script type="module" src="/src/main.js"></script>
     <script>
       document.addEventListener('DOMContentLoaded', () => { if (window.lucide) lucide.createIcons(); });
       document.addEventListener('alpine:initialized', () => { if (window.lucide) lucide.createIcons(); });

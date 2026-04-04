@@ -238,7 +238,7 @@ class PrinterService {
     text('--------------------------------\n');
     
     text(`Shift opened: \n`);
-    text(`Today         ${reportData.openedAt || '08:00'}\n\n`);
+    text(`Today         ${reportData.openedAt || 'N/A'}\n\n`);
     text(`Shift closed: \n`);
     text(`Today         ${new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}\n`);
     text('--------------------------------\n\n');

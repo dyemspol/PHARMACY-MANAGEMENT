@@ -136,6 +136,12 @@
           const rawCats = await window.db.getCategories();
           this.categories = ['All', ...rawCats.map(c => c.name)];
           this.medicines = await window.db.fetchInventory();
+          
+          // Initialize shift tracking
+          if (!window.db.getShiftMetadata()) {
+            window.db.startShiftLocal();
+          }
+          
           this.$nextTick(() => lucide.createIcons());
         }
       }, 100);
