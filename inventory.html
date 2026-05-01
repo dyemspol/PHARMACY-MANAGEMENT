@@ -85,23 +85,17 @@
             this.categories = cats;
 
             const raw = await window.db.fetchInventory();
-            this.medicines = raw.map(m => {
+            const _mapMed = (m) => {
               let cleanName = m.name || '';
               const str = (m.strength || '').trim();
-              if (str) {
-                const regex = new RegExp('\\s+' + str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
-                cleanName = cleanName.replace(regex, '');
-              }
-              return {
-                ...m,
-                name: cleanName,
-                costPrice: (m.costPrice || '0.00').toString().replace(/[?P₱ ]+/g, ''),
-                sellingPrice: (m.sellingPrice || '0.00').toString().replace(/[?P₱ ]+/g, '')
-              };
-            });
+              if (str) { cleanName = cleanName.replace(new RegExp('\\s+' + str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i'), ''); }
+              return { ...m, name: cleanName, costPrice: (m.costPrice||'0.00').toString().replace(/[?P₱ ]+/g,''), sellingPrice: (m.sellingPrice||'0.00').toString().replace(/[?P₱ ]+/g,'') };
+            };
+            this.medicines = raw.map(_mapMed);
             this.isLoading = false;
-            console.log('Fetched medicines:', this.medicines);
             this.$nextTick(() => lucide.createIcons());
+            // Real-time listener — auto-refresh when stock changes from refunds
+            window.db.subscribeToInventory((live) => { this.medicines = live.map(_mapMed); this.$nextTick(() => lucide.createIcons()); });
 
             // Re-initialize icons when filtering or searching (Debounced)
             this.$watch('debouncedSearchTerm', () => {

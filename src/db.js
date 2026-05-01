@@ -1,4 +1,4 @@
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, writeBatch, orderBy, limit, Timestamp } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, writeBatch, orderBy, limit, Timestamp, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
 
 const INVENTORY_COLLECTION = "inventory";
@@ -95,6 +95,19 @@ export const fetchInventory = async () => {
   }
 };
 
+// Real-time inventory subscription
+export const subscribeToInventory = (callback) => {
+  const q = query(collection(db, INVENTORY_COLLECTION));
+  return onSnapshot(q, (snapshot) => {
+    const items = [];
+    snapshot.forEach((doc) => items.push({ id: doc.id, ...doc.data() }));
+    items.sort((a, b) => a.name.localeCompare(b.name));
+    callback(items);
+  }, (error) => {
+    console.error('subscribeToInventory error:', error);
+  });
+};
+
 // Add a new item
 export const addInventoryItem = async (itemData) => {
   try {
@@ -175,19 +188,32 @@ export const returnItemsToInventory = async (items) => {
       inventoryItems.push({ id: doc.id, ...doc.data() });
     });
 
+    let results = [];
     for (const item of items) {
-      // Find item by ID first, then by name
-      let foundMed = inventoryItems.find(m => (item.id && m.id === item.id) || m.name === item.name);
-      
+      // Determine qty to return — prefer explicit refundQty, then quantity
+      const qtyToReturn = item.refundQty ?? item.quantity ?? 0;
+      if (qtyToReturn <= 0) continue;
+
+      // Find item by Firestore ID first, then exact name, then case-insensitive name
+      let foundMed =
+        (item.id ? inventoryItems.find(m => m.id === item.id) : null) ||
+        inventoryItems.find(m => m.name === item.name) ||
+        inventoryItems.find(m => m.name.trim().toLowerCase() === (item.name || '').trim().toLowerCase());
+
       if (foundMed) {
-        let currentStockNum = parseStock(foundMed.stock);
-        let newStockNum = currentStockNum + (item.quantityPurchased || item.quantity || 0);
-        let newStockStr = newStockNum + ' units';
+        const currentStockNum = parseStock(foundMed.stock);
+        const newStockNum = currentStockNum + qtyToReturn;
+        const newStockStr = newStockNum + ' units';
         await updateInventoryItem(foundMed.id, { stock: newStockStr });
+        results.push(`✅ ${foundMed.name}: ${currentStockNum} → ${newStockNum}`);
+        console.log(`Restocked: ${foundMed.name} +${qtyToReturn} → ${newStockNum} units`);
       } else {
-        console.warn(`Could not find inventory item: ${item.name}`);
+        results.push(`❌ NOT FOUND: "${item.name}" (id: ${item.id})`);
+        console.warn(`returnItemsToInventory: Could not find inventory item for "${item.name}" (id: ${item.id})`);
       }
     }
+    // Diagnostic alert — shows exactly what happened in inventory
+    alert('Stock Restore Result:\n' + (results.length ? results.join('\n') : 'No items processed'));
     return true;
   } catch (error) {
     console.error("Error returning items to inventory: ", error);
@@ -300,10 +326,12 @@ if (typeof window !== 'undefined') {
         updateCategoryName,
         deleteCategory,
         fetchInventory,
+        subscribeToInventory,
         addInventoryItem,
         updateInventoryItem,
         deleteInventoryItem,
         parseStock,
+        getStockUnit: (stock) => typeof stock === 'string' && stock.includes(' ') ? stock.split(' ').slice(1).join(' ') : 'units',
         isLowStock,
         getStockSeverity,
         parseCurrency,

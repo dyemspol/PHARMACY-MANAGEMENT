@@ -49,6 +49,7 @@
     
     // Shift Report State
     shiftReportModal: false,
+    saleDetailsModal: false,
     startingCash: '0',
     actualCash: '0',
 
@@ -347,7 +348,10 @@
         if (!confirm('Are you sure you want to refund this transaction?')) return;
         try {
             this.isLoading = true;
-            const itemsToReturn = this.selectedSale.cart.map(it => ({ ...it, quantity: it.quantity - (it.quantityRefunded || 0) })).filter(it => it.quantity > 0);
+            // Build list of items to return, with explicit refundQty
+            const itemsToReturn = this.selectedSale.cart
+                .map(it => ({ id: it.id, name: it.name, refundQty: it.quantity - (it.quantityRefunded || 0) }))
+                .filter(it => it.refundQty > 0);
             if (itemsToReturn.length > 0) await window.db.returnItemsToInventory(itemsToReturn);
             const updatedItems = this.selectedSale.cart.map(it => ({ ...it, quantityPurchased: it.quantity, quantityRefunded: it.quantity }));
             await window.salesDb.updateSaleItemRefund(this.selectedSale.rawId, updatedItems, 'Refunded');
@@ -356,21 +360,22 @@
         } catch (error) { alert('Error: ' + error.message); } finally { this.isLoading = false; }
     },
     async refundSaleItem(item, index) {
-        const remaining = item.quantity - item.quantityRefunded;
+        const remaining = item.quantity - (item.quantityRefunded || 0);
         if (remaining <= 0) return;
         const refundQty = parseInt(prompt(`How many units of ${item.name} to refund? (Max: ${remaining})`, remaining));
         if (isNaN(refundQty) || refundQty <= 0 || refundQty > remaining) return;
         try {
             this.isLoading = true;
-            await window.db.returnItemsToInventory([{ id: item.id, name: item.name, quantity: refundQty }]);
-            const updatedItems = this.selectedSale.cart.map((it, idx) => idx === index ? { ...it, quantityRefunded: it.quantityRefunded + refundQty } : { ...it, quantityPurchased: it.quantity, quantityRefunded: it.quantityRefunded || 0 });
-            const allRefunded = updatedItems.every(it => it.quantityRefunded >= it.quantity);
+            // Restore stock with explicit refundQty to avoid field ambiguity
+            await window.db.returnItemsToInventory([{ id: item.id, name: item.name, refundQty: refundQty }]);
+            const updatedItems = this.selectedSale.cart.map((it, idx) => idx === index ? { ...it, quantityRefunded: (it.quantityRefunded || 0) + refundQty } : { ...it, quantityPurchased: it.quantity, quantityRefunded: it.quantityRefunded || 0 });
+            const allRefunded = updatedItems.every(it => (it.quantityRefunded || 0) >= it.quantity);
             const overallStatus = allRefunded ? 'Refunded' : 'Completed';
-            const firestoreItems = updatedItems.map(it => ({ id: it.id, name: it.name, category: it.category, price: it.price, costPrice: it.costPrice || 0, quantityPurchased: it.quantity, quantityRefunded: it.quantityRefunded }));
+            const firestoreItems = updatedItems.map(it => ({ id: it.id, name: it.name, category: it.category, price: it.price, costPrice: it.costPrice || 0, quantityPurchased: it.quantity, quantityRefunded: it.quantityRefunded || 0 }));
             await window.salesDb.updateSaleItemRefund(this.selectedSale.rawId, firestoreItems, overallStatus);
             this.selectedSale.cart = updatedItems;
             this.selectedSale.status = overallStatus;
-            alert(`Successfully refunded ${refundQty} units`);
+            alert(`Successfully refunded ${refundQty} units of ${item.name}. Stock restored.`);
         } catch (error) { alert('Error: ' + error.message); } finally { this.isLoading = false; }
     },
 
@@ -675,7 +680,7 @@
             </div>
             <div class="col-span-2 sm:col-span-1 lg:col-span-1 bg-white/10 backdrop-blur-sm rounded-3xl p-5 md:p-6 border border-white/10 shadow-inner transition-transform hover:scale-[1.02]">
               <p class="text-[10px] font-black uppercase tracking-widest text-blue-100 mb-2 truncate">Net Sales</p>
-              <p class="text-2xl md:text-3xl font-black tracking-tighter" x-text="'₱' + todayNet.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
+              <p class="text-2xl md:text-3xl font-black tracking-tighter" x-text="'₱' + Math.max(0, todayNet - todayRefunded).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})"></p>
             </div>
           </div>
         </div>
@@ -733,8 +738,8 @@
                       <span :class="sale.status === 'Refunded' ? 'bg-rose-50 text-rose-600 border-rose-100' : (sale.cart && sale.cart.some(i => i.quantityRefunded > 0) ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100')" class="px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border" x-text="sale.status === 'Refunded' ? 'Refunded' : (sale.cart && sale.cart.some(i => i.quantityRefunded > 0) ? 'Partial Refund' : 'Completed')"></span>
                     </td>
                      <td class="px-8 py-6 text-right">
-                        <button class="w-10 h-10 bg-slate-50 text-blue-900 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl flex items-center justify-center transition-all ml-auto group-hover:shadow-sm">
-                          <i data-lucide="eye" class="w-4 h-4 transition-all group-hover:scale-110"></i>
+                        <button @click.stop="selectedSale = sale; saleDetailsModal = true" class="w-10 h-10 bg-slate-50 text-blue-900 hover:bg-white border border-transparent hover:border-slate-200 rounded-xl flex items-center justify-center transition-all ml-auto group-hover:shadow-sm relative z-10">
+                          <i data-lucide="eye" class="w-4 h-4 transition-all group-hover:scale-110 pointer-events-none"></i>
                         </button>
                      </td>
                   </tr>
