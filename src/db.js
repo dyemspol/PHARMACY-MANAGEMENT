@@ -212,8 +212,7 @@ export const returnItemsToInventory = async (items) => {
         console.warn(`returnItemsToInventory: Could not find inventory item for "${item.name}" (id: ${item.id})`);
       }
     }
-    // Diagnostic alert — shows exactly what happened in inventory
-    alert('Stock Restore Result:\n' + (results.length ? results.join('\n') : 'No items processed'));
+    console.log('Stock Restore Result:', results.length ? results.join(', ') : 'No items processed');
     return true;
   } catch (error) {
     console.error("Error returning items to inventory: ", error);

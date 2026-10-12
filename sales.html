@@ -46,7 +46,8 @@
     isLoading: true,
     currentUser: window.auth.getCurrentUser(),
     todayStr: new Date().toISOString().split('T')[0],
-    
+    salesData: [],
+
     // Shift Report State
     shiftReportModal: false,
     saleDetailsModal: false,
@@ -780,7 +781,7 @@
               </div>
               <div class="bg-slate-50 border border-slate-100 p-4 rounded-3xl">
                 <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Net Sales</p>
-                <p class="text-lg font-black text-emerald-600" x-text="'₱' + todayNet.toLocaleString('en-PH', {minimumFractionDigits:2})"></p>
+                <p class="text-lg font-black text-emerald-600" x-text="'₱' + Math.max(0, todayNet - todayRefunded).toLocaleString('en-PH', {minimumFractionDigits:2})"></p>
               </div>
             </div>
 
